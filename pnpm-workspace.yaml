@@ -1,0 +1,15 @@
+packages:
+  - apps/*
+  - packages/*
+  - packages/integrations/*
+
+allowBuilds:
+  '@nestjs/core': true
+  '@swc/core': true
+  '@prisma/engines': true
+  esbuild: true
+  prisma: true
+  msgpackr-extract: true
+
+minimumReleaseAgeExclude:
+  - '@redocly/cli@2.71.2'

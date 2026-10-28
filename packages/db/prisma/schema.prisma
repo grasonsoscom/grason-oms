@@ -1,0 +1,564 @@
+// Skema OMS GRASON. Sumber: docs/blueprint.md bagian "Model data"
+// dan docs/decisions/0001-fondasi-fase-0.md.
+// Uang = Int rupiah. Waktu = timestamptz UTC. Perubahan = migrasi baru.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────── Enum ─────────────────────────
+// Harus sama dengan packages/shared/src/enums.ts.
+
+enum Entitas {
+  SSR
+  FHI
+}
+
+enum OrderStatus {
+  baru
+  terverifikasi
+  di_gudang
+  dikirim
+  terkirim
+  selesai
+  batal
+  rts
+}
+
+enum LeadStatus {
+  baru
+  direspon
+  follow_up
+  closing
+  gagal
+}
+
+enum MetodeBayar {
+  cod
+  transfer
+}
+
+enum Agen {
+  cs_ai
+  cs_manusia
+}
+
+enum Sumber {
+  cs_ai
+  cs_manusia
+  ethix
+  adv_ai
+}
+
+enum Sistem {
+  cs_ai
+  ethix
+  adv_ai
+}
+
+enum TipeProduk {
+  satuan
+  paket
+}
+
+enum JenisReturn {
+  rts
+  retur
+}
+
+enum ArahIntegrasi {
+  masuk
+  keluar
+}
+
+enum StatusIntegrasi {
+  diterima
+  diproses
+  berhasil
+  gagal
+  duplikat
+}
+
+enum TipePelaku {
+  user
+  api_key
+  sistem
+}
+
+// ───────────────────────── Produk ─────────────────────────
+
+model Product {
+  id         String     @id @default(uuid()) @db.Uuid
+  sku        String     @unique
+  nama       String
+  tipe       TipeProduk @default(satuan)
+  entitas    Entitas
+  hargaJual  Int        @map("harga_jual")
+  beratGram  Int        @map("berat_gram")
+  aktif      Boolean    @default(true)
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  costs          ProductCost[]
+  bundleItems    Bundle[]        @relation("BundlePaket")
+  componentOf    Bundle[]        @relation("BundleKomponen")
+  orderItems     OrderItem[]
+  stockSnapshots StockSnapshot[]
+  leads          Lead[]
+  adSpend        AdSpendDaily[]
+
+  @@map("products")
+}
+
+/// Riwayat HPP. HPP baru = baris baru dengan berlaku_mulai baru; baris lama tidak diubah.
+model ProductCost {
+  id              String   @id @default(uuid()) @db.Uuid
+  productId       String   @map("product_id") @db.Uuid
+  hpp             Int
+  berlakuMulai    DateTime @map("berlaku_mulai") @db.Timestamptz(3)
+  catatan         String?
+  dibuatOlehId    String?  @map("dibuat_oleh_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  product   Product @relation(fields: [productId], references: [id])
+  dibuatOleh User?  @relation(fields: [dibuatOlehId], references: [id])
+
+  @@unique([productId, berlakuMulai])
+  @@map("product_costs")
+}
+
+/// Paket (isi 2/3) → komponen. Dikirim ke Ethix sebagai SKU komponen.
+model Bundle {
+  id                 String @id @default(uuid()) @db.Uuid
+  bundleProductId    String @map("bundle_product_id") @db.Uuid
+  componentProductId String @map("component_product_id") @db.Uuid
+  qty                Int
+
+  paket    Product @relation("BundlePaket", fields: [bundleProductId], references: [id])
+  komponen Product @relation("BundleKomponen", fields: [componentProductId], references: [id])
+
+  @@unique([bundleProductId, componentProductId])
+  @@map("bundles")
+}
+
+// ───────────────────────── Pelanggan & lead ─────────────────────────
+
+model Customer {
+  id         String   @id @default(uuid()) @db.Uuid
+  /// Format 628xxxxxxxxx (lihat normalisasiNoWa).
+  noWa       String   @unique @map("no_wa")
+  nama       String?
+  alamat     String?
+  kelurahan  String?
+  kecamatan  String?
+  kota       String?
+  provinsi   String?
+  kodePos    String?  @map("kode_pos")
+  /// Pelanggan dengan riwayat RTS wajib diverifikasi CS manusia.
+  tandaRts   Boolean  @default(false) @map("tanda_rts")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  leads       Lead[]
+  orderGroups OrderGroup[]
+  orders      Order[]
+
+  @@map("customers")
+}
+
+model Lead {
+  id                String     @id @default(uuid()) @db.Uuid
+  sumber            Sumber
+  externalId        String?    @map("external_id")
+  customerId        String     @map("customer_id") @db.Uuid
+  campaignId        String?    @map("campaign_id")
+  adsetId           String?    @map("adset_id")
+  adId              String?    @map("ad_id")
+  /// click_to_whatsapp, landing_page, organik, ...
+  kanal             String?
+  produkDitanyaId   String?    @map("produk_ditanya_id") @db.Uuid
+  agen              Agen
+  csUserId          String?    @map("cs_user_id") @db.Uuid
+  status            LeadStatus @default(baru)
+  handover          Boolean    @default(false)
+  handoverAt        DateTime?  @map("handover_at") @db.Timestamptz(3)
+  handoverAlasan    String?    @map("handover_alasan")
+  masukAt           DateTime   @map("masuk_at") @db.Timestamptz(3)
+  responPertamaAt   DateTime?  @map("respon_pertama_at") @db.Timestamptz(3)
+  catatan           String?
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  customer      Customer     @relation(fields: [customerId], references: [id])
+  produkDitanya Product?     @relation(fields: [produkDitanyaId], references: [id])
+  csUser        User?        @relation(fields: [csUserId], references: [id])
+  orderGroups   OrderGroup[]
+  orders        Order[]
+
+  @@unique([sumber, externalId])
+  @@index([adId])
+  @@index([csUserId, masukAt])
+  @@index([status, masukAt])
+  @@map("leads")
+}
+
+// ───────────────────────── Order ─────────────────────────
+
+/// Satu checkout. Bila berisi produk SSR dan FHI, dipecah jadi satu order per entitas
+/// (aturan pemecahan: Fase 1).
+model OrderGroup {
+  id         String   @id @default(uuid()) @db.Uuid
+  sumber     Sumber
+  externalId String?  @map("external_id")
+  leadId     String?  @map("lead_id") @db.Uuid
+  customerId String   @map("customer_id") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  lead     Lead?    @relation(fields: [leadId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+  orders   Order[]
+
+  @@unique([sumber, externalId])
+  @@map("order_groups")
+}
+
+model Order {
+  id            String      @id @default(uuid()) @db.Uuid
+  /// Nomor yang dibaca manusia, mis. GRS-20261028-0001.
+  nomor         String      @unique
+  orderGroupId  String      @map("order_group_id") @db.Uuid
+  sumber        Sumber
+  externalId    String?     @map("external_id")
+  leadId        String?     @map("lead_id") @db.Uuid
+  customerId    String      @map("customer_id") @db.Uuid
+  agen          Agen
+  csUserId      String?     @map("cs_user_id") @db.Uuid
+  entitas       Entitas
+  metodeBayar   MetodeBayar @map("metode_bayar")
+  subtotal      Int
+  diskon        Int         @default(0)
+  ongkir        Int         @default(0)
+  total         Int
+  nilaiCod      Int         @default(0) @map("nilai_cod")
+  status        OrderStatus @default(baru)
+  /// Referensi order di WMS Ethix.
+  ethixRef      String?     @unique @map("ethix_ref")
+  catatan       String?
+
+  // Snapshot alamat pengiriman.
+  penerimaNama  String      @map("penerima_nama")
+  penerimaNoWa  String      @map("penerima_no_wa")
+  alamat        String
+  kelurahan     String?
+  kecamatan     String?
+  kota          String
+  provinsi      String
+  kodePos       String?     @map("kode_pos")
+
+  terverifikasiAt DateTime? @map("terverifikasi_at") @db.Timestamptz(3)
+  dikirimKeEthixAt DateTime? @map("dikirim_ke_ethix_at") @db.Timestamptz(3)
+  selesaiAt       DateTime? @map("selesai_at") @db.Timestamptz(3)
+  dibatalkanAt    DateTime? @map("dibatalkan_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  orderGroup    OrderGroup           @relation(fields: [orderGroupId], references: [id])
+  lead          Lead?                @relation(fields: [leadId], references: [id])
+  customer      Customer             @relation(fields: [customerId], references: [id])
+  csUser        User?                @relation(fields: [csUserId], references: [id])
+  items         OrderItem[]
+  statusHistory OrderStatusHistory[]
+  shipments     Shipment[]
+  returns       Return[]
+  codSettlements CodSettlement[]
+  cost          OrderCost?
+
+  @@unique([sumber, externalId])
+  @@unique([orderGroupId, entitas])
+  @@index([status, createdAt])
+  @@index([csUserId, createdAt])
+  @@index([entitas, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          String @id @default(uuid()) @db.Uuid
+  orderId     String @map("order_id") @db.Uuid
+  productId   String @map("product_id") @db.Uuid
+  qty         Int
+  hargaSatuan Int    @map("harga_satuan")
+  diskon      Int    @default(0)
+  subtotal    Int
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id           String       @id @default(uuid()) @db.Uuid
+  orderId      String       @map("order_id") @db.Uuid
+  dariStatus   OrderStatus? @map("dari_status")
+  keStatus     OrderStatus  @map("ke_status")
+  olehTipe     TipePelaku   @map("oleh_tipe")
+  olehUserId   String?      @map("oleh_user_id") @db.Uuid
+  olehApiKeyId String?      @map("oleh_api_key_id") @db.Uuid
+  catatan      String?
+  waktu        DateTime     @default(now()) @db.Timestamptz(3)
+
+  order      Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  olehUser   User?   @relation(fields: [olehUserId], references: [id])
+  olehApiKey ApiKey? @relation(fields: [olehApiKeyId], references: [id])
+
+  @@index([orderId, waktu])
+  @@map("order_status_history")
+}
+
+// ───────────────────────── Pengiriman & retur ─────────────────────────
+
+model Shipment {
+  id               String    @id @default(uuid()) @db.Uuid
+  orderId          String    @map("order_id") @db.Uuid
+  kurir            String
+  resi             String    @unique
+  dikirimAt        DateTime? @map("dikirim_at") @db.Timestamptz(3)
+  diterimaAt       DateTime? @map("diterima_at") @db.Timestamptz(3)
+  percobaanAntar   Int       @default(0) @map("percobaan_antar")
+  statusKurir      String?   @map("status_kurir")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  order          Order           @relation(fields: [orderId], references: [id])
+  codSettlements CodSettlement[]
+
+  @@index([orderId])
+  @@map("shipments")
+}
+
+model Return {
+  id                String      @id @default(uuid()) @db.Uuid
+  orderId           String      @map("order_id") @db.Uuid
+  jenis             JenisReturn
+  alasan            String
+  kondisiBarang     String?     @map("kondisi_barang")
+  ongkirBalik       Int         @default(0) @map("ongkir_balik")
+  diterimaGudangAt  DateTime?   @map("diterima_gudang_at") @db.Timestamptz(3)
+  createdAt         DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@index([orderId])
+  @@map("returns")
+}
+
+// ───────────────────────── Stok ─────────────────────────
+
+/// Stok dari WMS Ethix. OMS tidak pernah mengubah stok gudang.
+/// Stok tersedia = stok Ethix terbaru − order belum diambil gudang.
+model StockSnapshot {
+  id             String   @id @default(uuid()) @db.Uuid
+  productId      String   @map("product_id") @db.Uuid
+  stokEthix      Int      @map("stok_ethix")
+  /// Barang retur yang layak jual, bila Ethix melaporkannya terpisah.
+  stokReturLayak Int      @default(0) @map("stok_retur_layak")
+  disinkronAt    DateTime @map("disinkron_at") @db.Timestamptz(3)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId, disinkronAt(sort: Desc)])
+  @@map("stock_snapshots")
+}
+
+// ───────────────────────── Uang ─────────────────────────
+
+/// COD yang benar-benar cair per resi, dari laporan Ethix.
+model CodSettlement {
+  id              String   @id @default(uuid()) @db.Uuid
+  sumber          Sumber   @default(ethix)
+  externalId      String   @map("external_id")
+  resi            String
+  shipmentId      String?  @map("shipment_id") @db.Uuid
+  orderId         String?  @map("order_id") @db.Uuid
+  nominalCair     Int      @map("nominal_cair")
+  potonganCod     Int      @default(0) @map("potongan_cod")
+  potonganOngkir  Int      @default(0) @map("potongan_ongkir")
+  /// Tanggal cair (WIB).
+  tanggalCair     DateTime @map("tanggal_cair") @db.Date
+  /// nominal cair + potongan − nilai COD order. 0 = cocok.
+  selisih         Int?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  shipment Shipment? @relation(fields: [shipmentId], references: [id])
+  order    Order?    @relation(fields: [orderId], references: [id])
+
+  @@unique([sumber, externalId])
+  @@index([resi])
+  @@map("cod_settlements")
+}
+
+model AdSpendDaily {
+  id         String   @id @default(uuid()) @db.Uuid
+  sumber     Sumber   @default(adv_ai)
+  externalId String   @map("external_id")
+  /// Tanggal spend (WIB).
+  tanggal    DateTime @db.Date
+  campaignId String   @map("campaign_id")
+  adsetId    String?  @map("adset_id")
+  adId       String   @map("ad_id")
+  productId  String?  @map("product_id") @db.Uuid
+  spend      Int
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@unique([sumber, externalId])
+  @@unique([tanggal, adId])
+  @@map("ad_spend_daily")
+}
+
+/// Biaya per order, diisi saat order selesai atau RTS.
+model OrderCost {
+  id          String   @id @default(uuid()) @db.Uuid
+  orderId     String   @unique @map("order_id") @db.Uuid
+  hpp         Int
+  biayaIklan  Int      @default(0) @map("biaya_iklan")
+  biayaCod    Int      @default(0) @map("biaya_cod")
+  ongkir      Int      @default(0)
+  ongkirRts   Int      @default(0) @map("ongkir_rts")
+  dihitungAt  DateTime @map("dihitung_at") @db.Timestamptz(3)
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("order_costs")
+}
+
+// ───────────────────────── Integrasi & audit ─────────────────────────
+
+/// Log setiap pertukaran data dengan sistem luar + pencegah data ganda.
+model IntegrationEvent {
+  id             String          @id @default(uuid()) @db.Uuid
+  sistem         Sistem
+  arah           ArahIntegrasi
+  jenis          String
+  externalId     String?         @map("external_id")
+  idempotencyKey String          @map("idempotency_key")
+  payload        Json
+  status         StatusIntegrasi @default(diterima)
+  percobaan      Int             @default(0)
+  error          String?
+  apiKeyId       String?         @map("api_key_id") @db.Uuid
+  createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  diprosesAt     DateTime?       @map("diproses_at") @db.Timestamptz(3)
+
+  apiKey ApiKey? @relation(fields: [apiKeyId], references: [id])
+
+  @@unique([sistem, arah, idempotencyKey])
+  @@index([status, createdAt])
+  @@map("integration_events")
+}
+
+model AuditLog {
+  id           String     @id @default(uuid()) @db.Uuid
+  pelakuTipe   TipePelaku @map("pelaku_tipe")
+  userId       String?    @map("user_id") @db.Uuid
+  apiKeyId     String?    @map("api_key_id") @db.Uuid
+  /// mis. auth.login, user.nonaktif, apikey.buat, hpp.ubah, ekspor.entitas
+  aksi         String
+  objekTipe    String?    @map("objek_tipe")
+  objekId      String?    @map("objek_id")
+  sebelum      Json?
+  sesudah      Json?
+  ip           String?
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user   User?   @relation(fields: [userId], references: [id])
+  apiKey ApiKey? @relation(fields: [apiKeyId], references: [id])
+
+  @@index([aksi, createdAt])
+  @@index([objekTipe, objekId])
+  @@map("audit_logs")
+}
+
+// ───────────────────────── Akses ─────────────────────────
+
+model Role {
+  id    String @id @default(uuid()) @db.Uuid
+  /// Kode role, sama dengan ROLE di packages/shared.
+  kode  String @unique
+  nama  String
+  users User[]
+
+  @@map("roles")
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  nama         String
+  passwordHash String    @map("password_hash")
+  roleId       String    @map("role_id") @db.Uuid
+  aktif        Boolean   @default(true)
+  loginTerakhirAt DateTime? @map("login_terakhir_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  role          Role                 @relation(fields: [roleId], references: [id])
+  sessions      Session[]
+  apiKeysDibuat ApiKey[]
+  leads         Lead[]
+  orders        Order[]
+  statusHistory OrderStatusHistory[]
+  productCosts  ProductCost[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+/// Sesi login. Cookie hanya membawa token; DB menyimpan hash SHA-256-nya.
+model Session {
+  id         String    @id @default(uuid()) @db.Uuid
+  tokenHash  String    @unique @map("token_hash")
+  userId     String    @map("user_id") @db.Uuid
+  expiresAt  DateTime  @map("expires_at") @db.Timestamptz(3)
+  dicabutAt  DateTime? @map("dicabut_at") @db.Timestamptz(3)
+  ip         String?
+  userAgent  String?   @map("user_agent")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  dipakaiAt  DateTime  @default(now()) @map("dipakai_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+/// Kunci untuk sistem luar. Kunci utuh hanya ditampilkan sekali; DB menyimpan prefix + hash.
+model ApiKey {
+  id           String    @id @default(uuid()) @db.Uuid
+  nama         String
+  sistem       Sistem
+  prefix       String    @unique
+  keyHash      String    @map("key_hash")
+  scopes       String[]
+  dibuatOlehId String?   @map("dibuat_oleh_id") @db.Uuid
+  dipakaiAt    DateTime? @map("dipakai_at") @db.Timestamptz(3)
+  dicabutAt    DateTime? @map("dicabut_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  dibuatOleh        User?                @relation(fields: [dibuatOlehId], references: [id])
+  statusHistory     OrderStatusHistory[]
+  integrationEvents IntegrationEvent[]
+  auditLogs         AuditLog[]
+
+  @@map("api_keys")
+}

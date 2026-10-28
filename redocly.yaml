@@ -1,0 +1,7 @@
+extends:
+  - recommended
+rules:
+  info-license: off
+  # Server lokal sengaja dicantumkan untuk pengembangan dan simulator.
+  no-server-example.com: off
+  operation-4xx-response: error

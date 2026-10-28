@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+packages/db/src/generated
+packages/db/prisma/migrations
+dist
+.next
+CLAUDE.md
+docs/blueprint.md

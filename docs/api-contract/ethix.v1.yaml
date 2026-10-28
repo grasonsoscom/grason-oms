@@ -1,0 +1,617 @@
+openapi: 3.1.0
+info:
+  title: OMS GRASON – Kontrak WMS Ethix
+  version: 1.0.0
+  description: |
+    Kontrak dua arah antara OMS GRASON dan WMS Ethix.
+
+    **OMS → Ethix** (endpoint di sisi Ethix, usulan; tag *Ethix: penerima order*):
+    order siap kirim dan pembatalan sebelum dikemas. OMS GRASON adalah klien
+    tersendiri, terpisah dari jalur EPOS.
+
+    **Ethix → OMS** (endpoint di sisi OMS): event pengiriman (diterima gudang,
+    dikemas, resi, terkirim, gagal antar/RTS, diterima kembali), stok per SKU, dan
+    laporan COD cair per resi. Ethix juga bisa menarik order lewat `GET /ethix/orders`
+    bila memilih polling.
+
+    Aturan umum:
+    - Ethix → OMS memakai API key sistem `ethix` (scope `pengiriman.tulis`,
+      `stok.tulis`, `cod.tulis`, `order_ethix.baca`). OMS → Ethix memakai kunci yang
+      diterbitkan Ethix untuk OMS GRASON (header `X-Ethix-Key`, nama final mengikuti Ethix).
+    - Uang = integer rupiah. Waktu = ISO-8601 UTC. Tanggal tanpa jam (`tanggal_cair`)
+      dimaknai sebagai tanggal WIB.
+    - Order ke Ethix selalu berisi **SKU komponen**; paket (isi 2/3) sudah diurai OMS.
+    - Idempotensi: setiap event Ethix membawa `event_id` unik; laporan COD membawa
+      `settlement_id` unik. Kiriman ulang tidak dicatat dua kali. Order ke Ethix
+      idempoten di `order_nomor`.
+    - Bila API belum siap, data yang sama dipertukarkan sebagai file CSV terjadwal;
+      lihat `ethix-csv.v1.md`. Kolom CSV = field di kontrak ini.
+    - Belum diputuskan (Fase 0): cara Ethix mencatat alokasi stok, jam cut-off harian,
+      dan nama header/URL final di sisi Ethix.
+servers:
+  - url: https://oms.grason.example/api/v1
+    description: OMS GRASON produksi (alamat final menyusul)
+  - url: http://localhost:3001/api/v1
+    description: OMS GRASON lokal
+security:
+  - bearerApiKey: []
+  - headerApiKey: []
+tags:
+  - name: 'Ethix: penerima order'
+    description: Endpoint di sisi Ethix yang dipanggil OMS (usulan, menunggu konfirmasi Ethix).
+  - name: Pengiriman
+    description: Event status gudang & kurir dari Ethix ke OMS.
+  - name: Stok
+    description: Stok fisik per SKU dari Ethix. OMS tidak pernah mengubah stok gudang.
+  - name: COD
+    description: Laporan COD cair per resi.
+  - name: Order
+    description: Order yang ditujukan ke Ethix, untuk polling atau rekonsiliasi.
+paths:
+  /oms-grason/v1/orders:
+    servers:
+      - url: https://wms.ethix.example
+        description: WMS Ethix (alamat final dari Ethix)
+    post:
+      tags: ['Ethix: penerima order']
+      operationId: ethixTerimaOrder
+      summary: OMS mengirim order siap kirim ke Ethix
+      description: |
+        Dikirim seketika setelah order Terverifikasi; order setelah jam cut-off ikut
+        batch hari berikutnya. Kiriman ulang dengan `order_nomor` dan isi yang sama
+        mengembalikan 200 dengan `ethix_ref` yang sama. Isi berbeda untuk `order_nomor`
+        yang sudah ada = 409.
+      security:
+        - ethixKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderEthix'
+      responses:
+        '201':
+          description: Order diterima Ethix.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TerimaOrderEthix'
+        '200':
+          description: Order sudah pernah diterima; data yang ada dikembalikan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TerimaOrderEthix'
+        '400':
+          $ref: '#/components/responses/ValidasiGagal'
+        '401':
+          $ref: '#/components/responses/TidakTerautentikasi'
+        '409':
+          $ref: '#/components/responses/Konflik'
+        '422':
+          description: Order tidak dapat diproses, mis. SKU tidak dikenal Ethix atau stok habis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Galat'
+  /oms-grason/v1/orders/{ethix_ref}/cancel:
+    servers:
+      - url: https://wms.ethix.example
+        description: WMS Ethix (alamat final dari Ethix)
+    parameters:
+      - name: ethix_ref
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: ['Ethix: penerima order']
+      operationId: ethixBatalkanOrder
+      summary: OMS membatalkan order sebelum dikemas
+      security:
+        - ethixKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [alasan]
+              properties:
+                alasan:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Order dibatalkan (atau sudah batal sebelumnya).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ethix_ref, status]
+                properties:
+                  ethix_ref:
+                    type: string
+                  status:
+                    type: string
+                    const: batal
+        '401':
+          $ref: '#/components/responses/TidakTerautentikasi'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+        '409':
+          description: Order sudah dikemas atau dikirim; tidak bisa dibatalkan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Galat'
+  /ethix/shipment-events:
+    post:
+      tags: [Pengiriman]
+      operationId: kirimEventPengiriman
+      summary: Ethix mengirim event status gudang & kurir
+      description: |
+        Batch berisi 1–500 event. Tiap event diproses terpisah: event yang gagal tidak
+        menggagalkan event lain dalam batch. Event dengan `event_id` yang sudah pernah
+        diterima dihitung sebagai `duplikat` dan diabaikan.
+
+        Pemetaan ke status OMS:
+        | `jenis` | Status OMS |
+        | --- | --- |
+        | `diterima_gudang` | di_gudang |
+        | `dikemas` | di_gudang (dicatat di riwayat) |
+        | `dikirim` (wajib `resi` + `kurir`) | dikirim |
+        | `terkirim` | terkirim (transfer langsung selesai) |
+        | `gagal_antar` | tetap dikirim; OMS memberi tahu CS AI |
+        | `rts` | rts |
+        | `diterima_kembali` | rts (barang kembali di gudang, isi `kondisi_barang`) |
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [events]
+              properties:
+                events:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  items:
+                    $ref: '#/components/schemas/EventPengiriman'
+      responses:
+        '200':
+          description: Batch diproses.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HasilBatch'
+        '400':
+          $ref: '#/components/responses/ValidasiGagal'
+        '401':
+          $ref: '#/components/responses/TidakTerautentikasi'
+        '403':
+          $ref: '#/components/responses/TidakDiizinkan'
+  /ethix/stock:
+    post:
+      tags: [Stok]
+      operationId: kirimStok
+      summary: Ethix mengirim stok per SKU
+      description: |
+        Dikirim tiap 15 menit dan setiap kali stok berubah. Berisi SKU komponen GRASON
+        saja. Snapshot dengan `snapshot_at` lebih lama dari snapshot terakhir yang
+        tersimpan diabaikan.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SnapshotStok'
+      responses:
+        '200':
+          description: Snapshot disimpan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HasilBatch'
+        '400':
+          $ref: '#/components/responses/ValidasiGagal'
+        '401':
+          $ref: '#/components/responses/TidakTerautentikasi'
+        '403':
+          $ref: '#/components/responses/TidakDiizinkan'
+  /ethix/cod-settlements:
+    post:
+      tags: [COD]
+      operationId: kirimLaporanCod
+      summary: Ethix mengirim laporan COD cair per resi
+      description: |
+        Satu laporan per hari cair (atau per batch transfer). OMS mencocokkan tiap baris
+        dengan order lewat `resi`. Order COD baru Selesai saat
+        `nominal_cair + potongan_cod + potongan_ongkir = nilai_cod` order; selisih
+        dicatat untuk rekonsiliasi Finance.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LaporanCod'
+      responses:
+        '200':
+          description: Laporan diproses.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HasilBatch'
+        '400':
+          $ref: '#/components/responses/ValidasiGagal'
+        '401':
+          $ref: '#/components/responses/TidakTerautentikasi'
+        '403':
+          $ref: '#/components/responses/TidakDiizinkan'
+  /ethix/orders:
+    get:
+      tags: [Order]
+      operationId: daftarOrderEthix
+      summary: Order yang ditujukan ke Ethix
+      description: Untuk polling bila Ethix tidak menerima push, dan untuk rekonsiliasi.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [siap_kirim, batal]
+            default: siap_kirim
+          description: '`siap_kirim` = terverifikasi dan belum dikonfirmasi diterima Ethix.'
+        - name: sejak
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Hanya order yang berubah sejak waktu ini (UTC).
+        - name: kursor
+          in: query
+          schema:
+            type: string
+        - name: batas
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Daftar order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrderEthix'
+                  kursor_berikutnya:
+                    type: [string, 'null']
+        '401':
+          $ref: '#/components/responses/TidakTerautentikasi'
+        '403':
+          $ref: '#/components/responses/TidakDiizinkan'
+  /ethix/orders/{order_nomor}:
+    parameters:
+      - name: order_nomor
+        in: path
+        required: true
+        schema:
+          type: string
+          example: GRS-20261028-0001
+    get:
+      tags: [Order]
+      operationId: ambilOrderEthix
+      summary: Satu order yang ditujukan ke Ethix
+      responses:
+        '200':
+          description: Order.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderEthix'
+        '401':
+          $ref: '#/components/responses/TidakTerautentikasi'
+        '404':
+          $ref: '#/components/responses/TidakDitemukan'
+components:
+  securitySchemes:
+    bearerApiKey:
+      type: http
+      scheme: bearer
+      description: 'API key OMS untuk Ethix: `Authorization: Bearer gok_<prefix>_<secret>`'
+    headerApiKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+    ethixKey:
+      type: apiKey
+      in: header
+      name: X-Ethix-Key
+      description: Kunci yang diterbitkan Ethix untuk OMS GRASON (usulan).
+  responses:
+    ValidasiGagal:
+      description: Data tidak valid. `error.detail` berisi daftar field dan pesannya.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Galat'
+    TidakTerautentikasi:
+      description: Kunci tidak ada, salah, atau sudah dicabut.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Galat'
+    TidakDiizinkan:
+      description: Kunci tidak punya scope untuk endpoint ini.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Galat'
+    TidakDitemukan:
+      description: Data tidak ditemukan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Galat'
+    Konflik:
+      description: Data bertentangan dengan yang sudah ada.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Galat'
+  schemas:
+    Galat:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [kode, pesan]
+          properties:
+            kode:
+              type: string
+            pesan:
+              type: string
+            detail: {}
+    Rupiah:
+      type: integer
+      minimum: 0
+      description: Integer rupiah, tanpa desimal.
+      example: 42000
+    Waktu:
+      type: string
+      format: date-time
+      description: ISO-8601 UTC.
+      example: '2026-10-28T07:05:00Z'
+    OrderEthix:
+      type: object
+      required:
+        [
+          order_nomor,
+          entitas,
+          metode_bayar,
+          nilai_cod,
+          penerima,
+          alamat,
+          items,
+          berat_gram,
+          dibuat_at,
+        ]
+      properties:
+        order_nomor:
+          type: string
+          description: Nomor order OMS; kunci idempotensi di Ethix.
+          example: GRS-20261028-0001
+        entitas:
+          type: string
+          enum: [SSR, FHI]
+          description: Entitas pemilik barang dan penerima COD.
+        metode_bayar:
+          type: string
+          enum: [cod, transfer]
+        nilai_cod:
+          allOf:
+            - $ref: '#/components/schemas/Rupiah'
+          description: Nilai yang ditagih kurir ke pembeli. 0 untuk transfer.
+        penerima:
+          type: object
+          required: [nama, no_hp]
+          properties:
+            nama:
+              type: string
+            no_hp:
+              type: string
+              example: '6281234567890'
+        alamat:
+          type: object
+          required: [alamat, kota, provinsi]
+          properties:
+            alamat:
+              type: string
+            kelurahan:
+              type: [string, 'null']
+            kecamatan:
+              type: [string, 'null']
+            kota:
+              type: string
+            provinsi:
+              type: string
+            kode_pos:
+              type: [string, 'null']
+        items:
+          type: array
+          minItems: 1
+          description: SKU komponen; paket sudah diurai OMS.
+          items:
+            type: object
+            required: [sku, qty]
+            properties:
+              sku:
+                type: string
+                example: VVG-01
+              qty:
+                type: integer
+                minimum: 1
+        berat_gram:
+          type: integer
+          minimum: 1
+        catatan:
+          type: [string, 'null']
+          maxLength: 500
+        dibuat_at:
+          $ref: '#/components/schemas/Waktu'
+        status:
+          type: string
+          enum: [siap_kirim, batal]
+          description: Hanya di respons `GET /ethix/orders`.
+    TerimaOrderEthix:
+      type: object
+      required: [order_nomor, ethix_ref, status]
+      properties:
+        order_nomor:
+          type: string
+        ethix_ref:
+          type: string
+          description: ID order di WMS Ethix; disimpan OMS di `orders.ethix_ref`.
+        status:
+          type: string
+          const: diterima
+    EventPengiriman:
+      type: object
+      required: [event_id, order_nomor, jenis, terjadi_at]
+      properties:
+        event_id:
+          type: string
+          maxLength: 100
+          description: ID unik event di Ethix; kunci idempotensi.
+        order_nomor:
+          type: string
+        ethix_ref:
+          type: [string, 'null']
+        jenis:
+          type: string
+          enum: [diterima_gudang, dikemas, dikirim, terkirim, gagal_antar, rts, diterima_kembali]
+        terjadi_at:
+          $ref: '#/components/schemas/Waktu'
+        kurir:
+          type: [string, 'null']
+          description: Wajib untuk `dikirim`.
+          example: JNE
+        resi:
+          type: [string, 'null']
+          description: Wajib untuk `dikirim`.
+        status_kurir:
+          type: [string, 'null']
+          description: Status asli dari kurir, apa adanya.
+        percobaan_antar:
+          type: [integer, 'null']
+          minimum: 0
+        alasan:
+          type: [string, 'null']
+          description: Wajib untuk `gagal_antar` dan `rts`, mis. "alamat tidak ditemukan", "COD ditolak".
+        kondisi_barang:
+          type: [string, 'null']
+          enum: [layak_jual, rusak, tidak_lengkap, null]
+          description: Untuk `diterima_kembali`.
+        ongkir_balik:
+          oneOf:
+            - $ref: '#/components/schemas/Rupiah'
+            - type: 'null'
+          description: Ongkir pengembalian, untuk `rts` atau `diterima_kembali`.
+    SnapshotStok:
+      type: object
+      required: [snapshot_at, items]
+      properties:
+        snapshot_at:
+          $ref: '#/components/schemas/Waktu'
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [sku, stok_layak_jual]
+            properties:
+              sku:
+                type: string
+              stok_layak_jual:
+                type: integer
+                minimum: 0
+                description: Stok fisik layak jual di gudang, termasuk retur yang sudah layak jual.
+              stok_retur_layak:
+                type: [integer, 'null']
+                minimum: 0
+                description: Bagian dari `stok_layak_jual` yang berasal dari retur, bila Ethix memisahkannya.
+              dialokasikan:
+                type: [integer, 'null']
+                minimum: 0
+                description: |
+                  Stok yang sudah dialokasikan ke order yang belum dikirim. Semantik final
+                  menunggu konfirmasi Ethix (Fase 0).
+    LaporanCod:
+      type: object
+      required: [laporan_id, items]
+      properties:
+        laporan_id:
+          type: string
+          description: ID laporan/batch transfer di Ethix.
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required:
+              [settlement_id, resi, tanggal_cair, nominal_cair, potongan_cod, potongan_ongkir]
+            properties:
+              settlement_id:
+                type: string
+                description: ID unik baris settlement di Ethix; kunci idempotensi.
+              resi:
+                type: string
+              order_nomor:
+                type: [string, 'null']
+              tanggal_cair:
+                type: string
+                format: date
+                description: Tanggal cair (WIB).
+                example: '2026-11-03'
+              nominal_cair:
+                $ref: '#/components/schemas/Rupiah'
+              potongan_cod:
+                $ref: '#/components/schemas/Rupiah'
+              potongan_ongkir:
+                $ref: '#/components/schemas/Rupiah'
+    HasilBatch:
+      type: object
+      required: [diterima, duplikat, gagal]
+      properties:
+        diterima:
+          type: integer
+        duplikat:
+          type: integer
+        gagal:
+          type: array
+          items:
+            type: object
+            required: [id, error]
+            properties:
+              id:
+                type: string
+                description: '`event_id`, `sku`, atau `settlement_id` yang gagal.'
+              error:
+                type: object
+                required: [kode, pesan]
+                properties:
+                  kode:
+                    type: string
+                    example: order_tidak_dikenal
+                  pesan:
+                    type: string

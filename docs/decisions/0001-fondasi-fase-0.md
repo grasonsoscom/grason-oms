@@ -1,6 +1,11 @@
 # 0001 – Fondasi Fase 0
 
-Tanggal: 2026-10-28 · Status: disetujui
+Tanggal: 2026-10-28 · Status: disetujui, sebagian digantikan
+[0003](0003-oms-tanpa-uang.md)
+
+> Sejak 0003, OMS tidak memegang uang: HPP placeholder, `product_costs`, `order_costs`,
+> `cod_settlements`, status `selesai`, serta izin dan scope COD/HPP/profit di catatan
+> ini sudah dihapus. Bagian lain tetap berlaku.
 
 ## Konteks
 

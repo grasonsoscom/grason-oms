@@ -10,20 +10,21 @@ info:
     tersendiri, terpisah dari jalur EPOS.
 
     **Ethix → OMS** (endpoint di sisi OMS): event pengiriman (diterima gudang,
-    dikemas, resi, terkirim, gagal antar/RTS, diterima kembali), stok per SKU, dan
-    laporan COD cair per resi. Ethix juga bisa menarik order lewat `GET /ethix/orders`
-    bila memilih polling.
+    dikemas, resi, terkirim, gagal antar/RTS, diterima kembali) dan stok per SKU.
+    Ethix juga bisa menarik order lewat `GET /ethix/orders` bila memilih polling.
+
+    **Pencairan COD tetap antara Ethix dan Finance**, di luar OMS. OMS mengirim nilai
+    COD yang ditagih kurir dan menyimpan nilai order, tetapi tidak menerima laporan
+    COD cair (keputusan 0003).
 
     Aturan umum:
     - Ethix → OMS memakai API key sistem `ethix` (scope `pengiriman.tulis`,
-      `stok.tulis`, `cod.tulis`, `order_ethix.baca`). OMS → Ethix memakai kunci yang
+      `stok.tulis`, `order_ethix.baca`). OMS → Ethix memakai kunci yang
       diterbitkan Ethix untuk OMS GRASON (header `X-Ethix-Key`, nama final mengikuti Ethix).
-    - Uang = integer rupiah. Waktu = ISO-8601 UTC. Tanggal tanpa jam (`tanggal_cair`)
-      dimaknai sebagai tanggal WIB.
+    - Uang = integer rupiah. Waktu = ISO-8601 UTC.
     - Order ke Ethix selalu berisi **SKU komponen**; paket (isi 2/3) sudah diurai OMS.
-    - Idempotensi: setiap event Ethix membawa `event_id` unik; laporan COD membawa
-      `settlement_id` unik. Kiriman ulang tidak dicatat dua kali. Order ke Ethix
-      idempoten di `order_nomor`.
+    - Idempotensi: setiap event Ethix membawa `event_id` unik. Kiriman ulang tidak
+      dicatat dua kali. Order ke Ethix idempoten di `order_nomor`.
     - Bila API belum siap, data yang sama dipertukarkan sebagai file CSV terjadwal;
       lihat `ethix-csv.v1.md`. Kolom CSV = field di kontrak ini.
     - Belum diputuskan (Fase 0): cara Ethix mencatat alokasi stok, jam cut-off harian,
@@ -43,8 +44,6 @@ tags:
     description: Event status gudang & kurir dari Ethix ke OMS.
   - name: Stok
     description: Stok fisik per SKU dari Ethix. OMS tidak pernah mengubah stok gudang.
-  - name: COD
-    description: Laporan COD cair per resi.
   - name: Order
     description: Order yang ditujukan ke Ethix, untuk polling atau rekonsiliasi.
 paths:
@@ -161,7 +160,7 @@ paths:
         | `diterima_gudang` | di_gudang |
         | `dikemas` | di_gudang (dicatat di riwayat) |
         | `dikirim` (wajib `resi` + `kurir`) | dikirim |
-        | `terkirim` | terkirim (transfer langsung selesai) |
+        | `terkirim` | terkirim (status akhir sukses) |
         | `gagal_antar` | tetap dikirim; OMS memberi tahu CS AI |
         | `rts` | rts |
         | `diterima_kembali` | rts (barang kembali di gudang, isi `kondisi_barang`) |
@@ -210,35 +209,6 @@ paths:
       responses:
         '200':
           description: Snapshot disimpan.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HasilBatch'
-        '400':
-          $ref: '#/components/responses/ValidasiGagal'
-        '401':
-          $ref: '#/components/responses/TidakTerautentikasi'
-        '403':
-          $ref: '#/components/responses/TidakDiizinkan'
-  /ethix/cod-settlements:
-    post:
-      tags: [COD]
-      operationId: kirimLaporanCod
-      summary: Ethix mengirim laporan COD cair per resi
-      description: |
-        Satu laporan per hari cair (atau per batch transfer). OMS mencocokkan tiap baris
-        dengan order lewat `resi`. Order COD baru Selesai saat
-        `nominal_cair + potongan_cod + potongan_ongkir = nilai_cod` order; selisih
-        dicatat untuk rekonsiliasi Finance.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/LaporanCod'
-      responses:
-        '200':
-          description: Laporan diproses.
           content:
             application/json:
               schema:
@@ -414,7 +384,7 @@ components:
         entitas:
           type: string
           enum: [SSR, FHI]
-          description: Entitas pemilik barang dan penerima COD.
+          description: Entitas pemilik barang.
         metode_bayar:
           type: string
           enum: [cod, transfer]
@@ -556,39 +526,6 @@ components:
                 description: |
                   Stok yang sudah dialokasikan ke order yang belum dikirim. Semantik final
                   menunggu konfirmasi Ethix (Fase 0).
-    LaporanCod:
-      type: object
-      required: [laporan_id, items]
-      properties:
-        laporan_id:
-          type: string
-          description: ID laporan/batch transfer di Ethix.
-        items:
-          type: array
-          minItems: 1
-          items:
-            type: object
-            required:
-              [settlement_id, resi, tanggal_cair, nominal_cair, potongan_cod, potongan_ongkir]
-            properties:
-              settlement_id:
-                type: string
-                description: ID unik baris settlement di Ethix; kunci idempotensi.
-              resi:
-                type: string
-              order_nomor:
-                type: [string, 'null']
-              tanggal_cair:
-                type: string
-                format: date
-                description: Tanggal cair (WIB).
-                example: '2026-11-03'
-              nominal_cair:
-                $ref: '#/components/schemas/Rupiah'
-              potongan_cod:
-                $ref: '#/components/schemas/Rupiah'
-              potongan_ongkir:
-                $ref: '#/components/schemas/Rupiah'
     HasilBatch:
       type: object
       required: [diterima, duplikat, gagal]
@@ -605,7 +542,7 @@ components:
             properties:
               id:
                 type: string
-                description: '`event_id`, `sku`, atau `settlement_id` yang gagal.'
+                description: '`event_id` atau `sku` yang gagal.'
               error:
                 type: object
                 required: [kode, pesan]

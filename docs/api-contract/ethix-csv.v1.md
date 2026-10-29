@@ -14,7 +14,9 @@ Status: draft Fase 0, menunggu konfirmasi Ethix.
 - Nama file: `<jenis>_<YYYYMMDD>_<HHmm>.csv` dalam WIB, mis. `orders_20261028_1400.csv`.
 - Lokasi pertukaran (SFTP/bucket) dan jadwal disepakati dengan Ethix di Fase 0.
 - File yang sudah diproses dipindah ke folder `processed/`; idempotensi tetap di
-  `order_nomor`, `event_id`, dan `settlement_id`, jadi file yang terproses ulang aman.
+  `order_nomor` dan `event_id`, jadi file yang terproses ulang aman.
+- Tidak ada file laporan COD cair: pencairan COD tetap antara Ethix dan Finance, di
+  luar OMS.
 
 ## `orders_*.csv` (OMS → Ethix)
 
@@ -68,16 +70,3 @@ yang sama; kolom tingkat order diulang di tiap baris.
 | stok_layak_jual  | ya                                     |
 | stok_retur_layak |                                        |
 | dialokasikan     |                                        |
-
-## `cod_*.csv` (Ethix → OMS)
-
-| Kolom           | Wajib                                  |
-| --------------- | -------------------------------------- |
-| laporan_id      | ya (sama untuk semua baris dalam file) |
-| settlement_id   | ya                                     |
-| resi            | ya                                     |
-| order_nomor     |                                        |
-| tanggal_cair    | ya                                     |
-| nominal_cair    | ya                                     |
-| potongan_cod    | ya                                     |
-| potongan_ongkir | ya                                     |

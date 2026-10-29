@@ -149,13 +149,12 @@ describe('seed', () => {
     }
   });
 
-  it('membuat 6 role, HPP placeholder, dan akun Orkestrator; aman dijalankan ulang', async () => {
+  it('membuat 6 role dan akun Orkestrator; aman dijalankan ulang', async () => {
     const admin = { email: 'Admin@Grason.Local', password: 'rahasia-panjang-123', nama: 'Admin' };
     await db.seed(prisma, { admin });
     await db.seed(prisma, { admin });
 
     expect(await prisma.role.count()).toBe(6);
-    expect(await prisma.productCost.count()).toBe(4);
     expect(await prisma.user.count()).toBe(1);
     const user = await prisma.user.findUniqueOrThrow({
       where: { email: 'admin@grason.local' },

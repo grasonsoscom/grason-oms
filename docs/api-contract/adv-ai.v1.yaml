@@ -8,14 +8,14 @@ info:
     - ID campaign, adset, dan iklan per lead **tidak** dikirim ADV AI langsung; ID itu
       dibawa lead dari SaaS CS AI (lihat `cs-ai.v1.yaml`, `POST /leads`).
     - ADV AI mengirim spend iklan harian, lalu membaca performa per iklan (lead,
-      order, GMV cair, ROAS riil) dari OMS.
+      order, GMV terkirim, ROAS riil) dari OMS. OMS tidak mencatat pencairan COD;
+      pencairan tetap antara Ethix dan Finance (keputusan 0003).
     - Event pembelian ke Meta Conversions API: endpoint `GET /ads/purchases` disiapkan
       untuk skenario "lewat ADV AI". Keputusan apakah OMS mengirim langsung atau lewat
       ADV AI belum diambil; endpoint ini berstatus draft.
-    - **Keputusan terbuka:** kapan event Purchase dikirim. Draft memakai saat order
-      Selesai (COD cair), tetapi COD sering cair lebih dari 7 hari setelah klik, melewati
-      batas 7 hari Meta Conversions API. Usulan: kirim saat Terverifikasi atau Terkirim,
-      lalu koreksi bila order berakhir RTS/batal. Lihat
+    - **Keputusan terbuka:** kapan event Purchase dikirim. Usulan: saat order
+      Terkirim, yang umumnya masih dalam batas 7 hari Meta Conversions API, ditambah
+      koreksi bila order berakhir RTS. Lihat
       `docs/decisions/0002-waktu-event-purchase-meta.md`.
 
     Aturan umum:
@@ -93,11 +93,12 @@ paths:
     get:
       tags: [Performa]
       operationId: performaIklan
-      summary: Lead, order, GMV cair, dan ROAS riil per iklan
+      summary: Lead, order, GMV terkirim, dan ROAS riil per iklan
       description: |
-        ROAS riil = GMV cair ÷ spend. GMV cair = COD yang cair ditambah transfer yang
-        diterima; order batal dan RTS tidak dihitung. Angka bisa berubah mundur saat COD
-        cair belakangan, jadi tarik ulang rentang 30 hari terakhir secara berkala.
+        ROAS riil = GMV terkirim ÷ spend. GMV terkirim = nilai order (`total`) yang
+        berstatus terkirim; order batal dan RTS tidak dihitung. Angka bisa berubah mundur
+        saat order lama baru terkirim, jadi tarik ulang rentang 30 hari terakhir secara
+        berkala.
       parameters:
         - name: dari
           in: query
@@ -122,10 +123,10 @@ paths:
             default: ad
         - name: dasar_tanggal
           in: query
-          description: '`lead` = dikelompokkan menurut tanggal lead masuk (default); `cair` = menurut tanggal COD cair.'
+          description: '`lead` = dikelompokkan menurut tanggal lead masuk (default); `terkirim` = menurut tanggal order terkirim.'
           schema:
             type: string
-            enum: [lead, cair]
+            enum: [lead, terkirim]
             default: lead
       responses:
         '200':
@@ -161,18 +162,17 @@ paths:
       summary: Event pembelian untuk Meta Conversions API – draft
       x-keputusan-terbuka:
         - 'Jalur event: OMS langsung ke Meta atau lewat ADV AI (docs/decisions/0001-fondasi-fase-0.md).'
-        - 'Waktu event Purchase: Terverifikasi, Terkirim, atau Selesai, plus koreksi RTS (docs/decisions/0002-waktu-event-purchase-meta.md).'
+        - 'Waktu event Purchase: usulan saat Terkirim, plus koreksi RTS (docs/decisions/0002-waktu-event-purchase-meta.md).'
       description: |
         Satu event per order dari lead yang membawa `ad_id`. Nomor WA hanya dikirim
         dalam bentuk hash SHA-256 (format Meta: angka saja, diawali kode negara).
 
-        **Keputusan terbuka – waktu event.** Draft ini membuat event saat order Selesai
-        (COD cair cocok, atau transfer terkirim). Meta Conversions API menolak event
-        dengan `event_time` lebih dari 7 hari ke belakang dan memakai jendela atribusi
-        7 hari setelah klik, sementara COD sering cair lebih lambat dari itu. Usulan:
-        event dibuat saat Terverifikasi atau Terkirim, ditambah event koreksi bila order
-        berakhir RTS atau batal. Pemicu event, arti `terjadi_at` dan `nilai`, serta
-        skema koreksi menyusul setelah keputusan diambil.
+        **Keputusan terbuka – waktu event.** Usulan draft ini: satu event saat order
+        Terkirim. Meta Conversions API menolak event dengan `event_time` lebih dari 7 hari
+        ke belakang dan memakai jendela atribusi 7 hari setelah klik; waktu dari klik
+        sampai paket terkirim umumnya masih di dalam batas itu. Order yang berakhir RTS
+        tidak pernah terkirim, jadi tidak membuat event. Skema koreksi untuk retur setelah
+        terkirim menyusul setelah tim ADV AI menjawab.
 
         Status draft sampai jalur dan waktu event ke Meta diputuskan.
       parameters:
@@ -295,7 +295,7 @@ components:
           $ref: '#/components/schemas/Rupiah'
     PerformaIklan:
       type: object
-      required: [id, lead, order, order_terkirim, order_selesai, order_rts, gmv_cair, spend]
+      required: [id, lead, order, order_terkirim, order_rts, gmv_terkirim, spend]
       properties:
         id:
           type: string
@@ -313,17 +313,17 @@ components:
           description: Order dibuat (tidak termasuk batal).
         order_terkirim:
           type: integer
-        order_selesai:
-          type: integer
         order_rts:
           type: integer
-        gmv_cair:
-          $ref: '#/components/schemas/Rupiah'
+        gmv_terkirim:
+          allOf:
+            - $ref: '#/components/schemas/Rupiah'
+          description: Total nilai order berstatus terkirim; tanpa batal dan RTS.
         spend:
           $ref: '#/components/schemas/Rupiah'
         roas_riil:
           type: [number, 'null']
-          description: gmv_cair ÷ spend, dua desimal. null bila spend 0.
+          description: gmv_terkirim ÷ spend, dua desimal. null bila spend 0.
           example: 2.35
         closing_rate:
           type: [number, 'null']
@@ -347,14 +347,14 @@ components:
         nilai:
           allOf:
             - $ref: '#/components/schemas/Rupiah'
-          description: GMV cair order. Bisa berubah menjadi nilai order bila event dikirim sebelum COD cair (keputusan terbuka).
+          description: Nilai order (`total`) yang terkirim.
         mata_uang:
           type: string
           const: IDR
         terjadi_at:
           type: string
           format: date-time
-          description: Waktu order Selesai (UTC). Mengikuti pemicu event yang dipilih (keputusan terbuka).
+          description: Waktu order terkirim (UTC). Mengikuti pemicu event yang dipilih (keputusan terbuka).
         no_wa_sha256:
           type: string
           description: SHA-256 hex dari nomor WA `628…`.

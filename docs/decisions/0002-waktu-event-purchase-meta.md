@@ -1,48 +1,48 @@
 # 0002 – Waktu pengiriman event Purchase ke Meta
 
-Tanggal: 2026-10-29 · Status: terbuka (menunggu jawaban tim ADV AI, batas 5 November 2026)
+Tanggal: 2026-10-29 · Diperbarui: 2026-10-29 (mengikuti [0003](0003-oms-tanpa-uang.md)) ·
+Status: terbuka (menunggu jawaban tim ADV AI, batas 5 November 2026)
 
 ## Konteks
 
-Draft `GET /ads/purchases` di [adv-ai.v1.yaml](../api-contract/adv-ai.v1.yaml) membuat satu
-event Purchase per order saat order **Selesai**. Untuk order COD, itu berarti saat COD cair
-cocok dengan nilai order.
+Draft awal `GET /ads/purchases` di [adv-ai.v1.yaml](../api-contract/adv-ai.v1.yaml) membuat
+event Purchase saat order Selesai, yaitu saat COD cair. Ada dua masalah:
 
-Masalahnya ada pada batas 7 hari Meta Conversions API:
+- **Batas 7 hari Meta Conversions API.** Meta menolak event dengan `event_time` lebih dari
+  7 hari sebelum waktu kirim, dan jendela atribusi default-nya 7 hari setelah klik iklan.
+  Waktu dari klik sampai COD cair sering lebih dari 7 hari.
+- **OMS tidak lagi mencatat pencairan COD** ([0003](0003-oms-tanpa-uang.md)). Status
+  `selesai` dihapus; status akhir sukses adalah `terkirim`.
 
-- Meta menolak event dengan `event_time` lebih dari 7 hari sebelum waktu kirim.
-- Jendela atribusi default Meta adalah 7 hari setelah klik iklan.
-
-Waktu dari klik iklan sampai COD cair mencakup closing, kirim, antar, dan pencairan oleh
-kurir, sehingga sering lebih dari 7 hari. Akibatnya, event Purchase saat COD cair berisiko
-datang terlambat, tidak teratribusi ke iklan, dan tidak berguna untuk optimasi.
-
-Kedua angka di atas mengikuti dokumentasi Meta dan perlu dikonfirmasi tim ADV AI untuk
-akun dan `action_source` yang dipakai (misalnya click-to-WhatsApp).
+Kedua angka 7 hari di atas mengikuti dokumentasi Meta dan perlu dikonfirmasi tim ADV AI
+untuk akun dan `action_source` yang dipakai (misalnya click-to-WhatsApp).
 
 ## Opsi
 
-| Opsi | Purchase dikirim saat               | Kelebihan                                            | Kekurangan                                                          |
-| ---- | ----------------------------------- | ---------------------------------------------------- | ------------------------------------------------------------------- |
-| A    | Terverifikasi                       | Paling cepat, hampir pasti dalam 7 hari              | Paling banyak koreksi; RTS dan batal ikut terhitung dulu            |
-| B    | Terkirim                            | Order sudah diterima pembeli; RTS setelah ini jarang | Bergantung kecepatan status kurir dari Ethix; bisa mendekati 7 hari |
-| C    | Selesai (COD cair) – draft saat ini | Sinyal paling bersih, sama dengan ROAS riil          | Sering lewat 7 hari; event ditolak atau tidak teratribusi           |
+| Opsi | Purchase dikirim saat | Kelebihan                                              | Kekurangan                                          |
+| ---- | --------------------- | ------------------------------------------------------ | --------------------------------------------------- |
+| A    | Terverifikasi         | Paling cepat                                           | Order yang nanti batal atau RTS ikut terhitung dulu |
+| B    | Terkirim              | Paket sudah diterima pembeli; sama dengan GMV terkirim | Bergantung kecepatan status kurir dari Ethix        |
 
-**Usulan: opsi A atau B, ditambah koreksi.** Bila order yang sudah dikirimi Purchase
-berakhir RTS atau batal, OMS mengirim event koreksi. Meta tidak punya cara menarik event
-Purchase yang sudah terkirim, jadi bentuk koreksinya (event kustom, nilai negatif, atau
-cara lain yang sudah dipakai ADV AI) ditanyakan ke tim ADV AI (pertanyaan 7).
+**Usulan: opsi B, saat terkirim.** Waktu dari klik sampai paket terkirim umumnya masih di
+dalam batas 7 hari. Nilai event = `total` order, sama dengan GMV terkirim di
+`GET /ads/performance`, jadi angka di Meta dan OMS bisa dicocokkan. Order RTS tidak pernah
+terkirim, sehingga tidak membuat event.
 
-Apa pun pilihannya, ROAS riil di OMS (`GET /ads/performance`) tetap dihitung dari GMV cair.
-Event ke Meta hanya sinyal optimasi, bukan angka keuangan.
+Yang masih perlu dijawab tim ADV AI (pertanyaan 7 di pesan review):
+
+- Apakah opsi B cukup cepat untuk optimasi, atau ADV AI lebih memilih opsi A dengan
+  koreksi?
+- Bentuk koreksi untuk retur setelah terkirim (event kustom, atau cara lain yang sudah
+  dipakai ADV AI). Meta tidak punya cara menarik event Purchase yang sudah terkirim.
+- Apakah batas 7 hari berlaku sama untuk iklan click-to-WhatsApp.
 
 ## Dampak ke kontrak
 
 `adv-ai.v1.yaml` belum dikirim ke tim ADV AI dan endpoint ini berstatus draft, jadi
-penandaan keputusan terbuka ditulis di v1 tanpa mengubah skema. Setelah keputusan diambil,
-field yang bergantung padanya disesuaikan: pemicu event, arti `terjadi_at`, arti `nilai`
-(nilai order vs GMV cair), dan skema event koreksi. Bila v1 sudah dibagikan ke tim lain
-saat itu, perubahan masuk ke v2.
+usulan dan penandaan keputusan terbuka ditulis langsung di v1: `terjadi_at` = waktu
+terkirim, `nilai` = total order. Bila v1 sudah dibagikan saat keputusan diambil,
+perubahan berikutnya masuk ke v2.
 
 Terkait: keputusan jalur event (OMS langsung atau lewat ADV AI) masih terbuka di
 [0001](0001-fondasi-fase-0.md).

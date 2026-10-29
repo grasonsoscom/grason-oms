@@ -11,8 +11,11 @@ GRASON OMS v1 fokus ke order Soscom. Lead dan order dari SaaS CS AI dan CS manus
 | Pencatatan lead & atribusi iklan | WACOS (Online Sales + IT) | OMS GRASON, data dari SaaS CS AI dan ADV AI |
 | Input order | EPOS (Operations + IT) | OMS GRASON: otomatis dari CS AI, form untuk CS manusia |
 | Pengemasan & pengiriman | WMS Ethix | WMS Ethix, order dikirim langsung dari OMS GRASON |
-| Kurir & COD | Ethix sebagai agregator | Tetap Ethix; status resi, RTS, dan COD cair ditarik balik ke OMS |
+| Kurir & COD | Ethix sebagai agregator | Tetap Ethix; status resi dan RTS ditarik balik ke OMS |
+| Pencairan COD & cashflow | Alur Finance dengan Ethix | Tetap di Finance, tidak masuk OMS |
 | Order Shopee & TikTok | OMS holding | Tetap OMS holding sampai v2 |
+
+OMS tidak memegang uang. Nilai order dan nilai COD tetap dicatat, karena dikirim ke Ethix untuk ditagih kurir dan dipakai untuk GMV di dashboard.
 
 Scope v1:
 
@@ -21,12 +24,12 @@ Scope v1:
 | Lead & atribusi iklan | Ya | Setiap lead membawa ID campaign/iklan asalnya |
 | Order Soscom | Ya | Order dari CS AI dan CS manusia dalam satu daftar |
 | Integrasi WMS Ethix | Ya | Order terkirim ke gudang otomatis; status, resi, RTS kembali ke OMS |
-| COD & retur | Ya | Rekonsiliasi COD cair per resi, alasan RTS per CS, kota, iklan |
+| RTS | Ya | Alasan RTS per CS, kota, iklan |
 | Stok | Ya | Stok dari WMS Ethix, dikurangi order yang belum diambil gudang |
-| Profit & ROAS riil | Ya | GP per order dan ROAS per iklan dari COD yang benar-benar cair |
+| Dashboard monitoring | Ya | GMV terkirim, ROAS per iklan, funnel lead → terkirim |
 | Kinerja CS | Ya | CS AI vs CS manusia dengan metrik yang sama |
 | Shopee & TikTok Shop | v2 | Menunggu akses API |
-| Akuntansi & jurnal | Tidak | Tetap di Finance; OMS kirim ekspor per entitas |
+| Pencairan COD, HPP, profit | Tidak | Tetap di Finance |
 
 ## Arsitektur & tech stack
 
@@ -34,14 +37,14 @@ OMS GRASON berdiri di tengah: menerima lead dan order dari SaaS CS AI dan CS man
 
 &#91;embedded content: arsitektur OMS GRASON v1 · 3 sumber, 1 pintu ke WMS Ethix\]
 
-WMS Ethix berjalan dua arah: order masuk ke gudang, lalu status kemas, resi, RTS, dan COD cair kembali ke OMS. Shopee dan TikTok Shop baru tersambung di v2.
+WMS Ethix berjalan dua arah: order masuk ke gudang, lalu status kemas, resi, terkirim, dan RTS kembali ke OMS. Shopee dan TikTok Shop baru tersambung di v2.
 
 | Lapis | Pilihan | Alasan |
 | --- | --- | --- |
 | Bahasa | TypeScript (frontend + backend) | Claude Code paling konsisten di satu bahasa; tipe data dipakai bersama |
-| Backend API | Node.js + NestJS | Struktur modul jelas (lead, order, stok, COD, CS) dan mudah dites |
+| Backend API | Node.js + NestJS | Struktur modul jelas (lead, order, stok, RTS, CS) dan mudah dites |
 | Database | PostgreSQL 16 + Prisma ORM | Transaksi order dan stok atomik; migrasi skema terlacak |
-| Antrian job | Redis + BullMQ | Kirim order ke Ethix, tarik status & COD, webhook ke CS AI, event ke Meta, semuanya dengan retry |
+| Antrian job | Redis + BullMQ | Kirim order ke Ethix, tarik status & stok, webhook ke CS AI, event ke Meta, semuanya dengan retry |
 | Frontend | Next.js + Tailwind | Dashboard internal, bisa dipakai dari HP |
 | Auth | Login email + password, role-based; API key untuk sistem | Hak akses per posisi; CS AI dan Ethix pakai kunci terpisah |
 | Deploy | Docker Compose di VPS (estimasi 4 vCPU, 8 GB RAM) | Satu perintah untuk naik; mudah dipindah |
@@ -58,17 +61,16 @@ Prinsip yang dipegang di semua modul:
 
 ## Integrasi
 
-v1 punya tiga integrasi wajib: SaaS CS AI, WMS Ethix, dan ADV AI/Meta. Kontrak datanya dikunci di Fase 0, tetapi integrasinya baru dibangun di Fase 3. Sampai saat itu, ketiganya digantikan simulator di dalam repo yang mengirim lead, order, status gudang, spend iklan, dan laporan COD palsu dengan format kontrak yang sama. Pindah ke data nyata cukup dengan mengganti sumbernya.
+v1 punya tiga integrasi wajib: SaaS CS AI, WMS Ethix, dan ADV AI/Meta. Kontrak datanya dikunci di Fase 0, tetapi integrasinya baru dibangun di Fase 3. Sampai saat itu, ketiganya digantikan simulator di dalam repo yang mengirim lead, order, status gudang, dan spend iklan palsu dengan format kontrak yang sama. Pindah ke data nyata cukup dengan mengganti sumbernya.
 
 | Dari → ke | Yang dikirim | Cara | Pemilik sisi lain |
 | --- | --- | --- | --- |
 | SaaS CS AI → OMS | Lead baru + ID iklan, update lead, order, handover ke CS manusia | REST API + API key | Tim SaaS CS AI GRASON |
 | OMS → SaaS CS AI | Status order, resi, stok tersedia, harga aktif | Webhook + GET API | Tim SaaS CS AI GRASON |
-| OMS → WMS Ethix | Order siap kirim: penerima, alamat, SKU, qty, nilai COD | API Ethix, sementara boleh file terjadwal | Ethix + IT |
+| OMS → WMS Ethix | Order siap kirim: penerima, alamat, SKU, qty, nilai COD untuk ditagih kurir | API Ethix, sementara boleh file terjadwal | Ethix + IT |
 | WMS Ethix → OMS | Dikemas, resi + kurir, terkirim, RTS, stok per SKU | Webhook atau polling | Ethix + IT |
-| Ethix → OMS | COD cair per resi, potongan biaya COD dan ongkir | File atau API harian | Ethix + Finance |
-| ADV AI → OMS | ID campaign, adset, iklan (dibawa lead dari click-to-WhatsApp atau UTM LP) | Lewat SaaS CS AI | Tim ADV AI |
-| OMS → Meta | Event pembelian saat COD cair, untuk optimasi iklan | Conversions API, lewat ADV AI atau langsung | Tim ADV AI |
+| ADV AI → OMS | Spend harian per iklan; ID campaign, adset, iklan dibawa lead lewat SaaS CS AI | REST API + API key | Tim ADV AI |
+| OMS → Meta | Event pembelian untuk optimasi iklan, waktunya masih keputusan terbuka | Conversions API, lewat ADV AI atau langsung | Tim ADV AI |
 
 ### Kontrak API untuk SaaS CS AI
 
@@ -86,52 +88,51 @@ v1 punya tiga integrasi wajib: SaaS CS AI, WMS Ethix, dan ADV AI/Meta. Kontrak d
 - Endpoint penerima order dari OMS GRASON sebagai klien tersendiri, terpisah dari jalur EPOS.
 - Status balik per order: dikemas, dikirim + resi + kurir, terkirim, gagal antar/RTS, diterima kembali di gudang.
 - Stok per SKU produk GRASON, termasuk barang retur yang layak jual.
-- Laporan COD cair per resi: tanggal cair, nominal, potongan biaya COD dan ongkir.
 - Bila API belum siap: pertukaran file CSV terjadwal dengan format yang sama, supaya nanti tinggal diganti ke API.
+
+Laporan pencairan COD tidak dibutuhkan OMS; alurnya tetap antara Ethix dan Finance.
 
 Semua integrasi idempotent (kunci = sumber + ID eksternal), punya retry bertahap, dan tercatat di log integrasi.
 
 ## Model data
 
-Tiga tabel paling menentukan di v1: `leads` (membawa ID iklan, dasar ROAS dan kinerja CS), `orders` (satu baris per order, dengan referensi order di Ethix), dan `cod_settlements` (uang yang benar-benar cair). Setiap order juga membawa entitas (SSR atau FHI) supaya ekspor Finance sudah terpisah sesuai RKAT.
+Dua tabel paling menentukan di v1: `leads` (membawa ID iklan, dasar ROAS dan kinerja CS) dan `orders` (satu baris per order, dengan referensi order di Ethix). Setiap order membawa entitas (SSR atau FHI) supaya laporan bisa dipisah per entitas. Tidak ada tabel uang masuk, HPP, atau biaya.
 
 | Tabel | Isi utama | Catatan |
 | --- | --- | --- |
 | `products` | SKU, nama, harga jual, berat, entitas (SSR/FHI) | Vivagoat → SSR; Bio Serea, Kapsul Kutuk, Wight Up → FHI |
-| `product_costs` | SKU, HPP, berlaku\_mulai | HPP berubah tanpa merusak hitungan bulan lalu |
 | `bundles` | SKU paket → SKU komponen + qty | Paket isi 2/3 dikirim ke Ethix sebagai komponen |
 | `customers` | Nomor WA (unik), nama, alamat | Dasar repeat order dan riwayat RTS per pelanggan |
 | `leads` | Sumber, campaign/adset/ad ID, agen (CS AI atau CS manusia), waktu masuk, respon pertama, status, handover | Closing rate = lead dengan order ÷ total lead |
-| `orders` | Lead, pelanggan, CS, metode bayar (COD/transfer), total, nilai COD, status OMS, ref Ethix, entitas | Unik di (sumber, ID eksternal) |
+| `order_groups` | Satu checkout; bisa berisi order SSR dan FHI | Dipakai saat produk campur entitas |
+| `orders` | Lead, grup, pelanggan, CS, metode bayar (COD/transfer), total, nilai COD, status OMS, ref Ethix, entitas | Unik di (sumber, ID eksternal) |
 | `order_items` | Order, SKU, qty, harga, diskon |  |
 | `order_status_history` | Order, status, waktu, oleh siapa/sistem | Dasar SLA dan audit |
 | `shipments` | Order, kurir, resi, waktu kirim, waktu terima, percobaan antar | Diisi dari status Ethix |
-| `returns` | Order, jenis (RTS/retur), alasan, kondisi barang, ongkir balik | Alasan RTS dianalisis per CS, kota, iklan |
+| `returns` | Order, jenis (RTS/retur), alasan, kondisi barang | Alasan RTS dianalisis per CS, kota, iklan |
 | `stock_snapshots` | SKU, stok Ethix, waktu sinkron | Stok tersedia = stok Ethix − order belum diambil gudang |
-| `cod_settlements` | Resi, nominal cair, potongan COD & ongkir, tanggal cair, selisih | Order baru Selesai saat COD cair cocok |
-| `ad_spend_daily` | Tanggal, campaign/ad ID, produk, spend | Ditarik dari ADV AI |
-| `order_costs` | Order, HPP, biaya iklan teralokasi, biaya COD, ongkir, ongkir retur | Diisi saat order selesai atau RTS |
+| `ad_spend_daily` | Tanggal, campaign/ad ID, produk, spend | Ditarik dari ADV AI, dasar ROAS |
 | `integration_events` | Sistem, arah, ID eksternal, payload, hasil, error | Log + pencegah data ganda |
-| `users`, `roles`, `api_keys` | Akun tim, hak akses, kunci untuk CS AI dan Ethix |  |
+| `audit_logs` | Siapa mengubah apa, kapan; termasuk ekspor data |  |
+| `users`, `roles`, `sessions`, `api_keys` | Akun tim, hak akses, sesi login, kunci untuk CS AI, ADV AI, Ethix |  |
 
 Tabel untuk v2 (Shopee dan TikTok Shop): `stores` dan `channel_skus` untuk pemetaan SKU ke item marketplace.
 
 ## Modul & alur
 
-Order Soscom melewati enam status utama dengan dua jalur keluar. Order baru dianggap Selesai saat COD-nya cair dan cocok dengan nilai order, bukan saat paket diterima.
+Order Soscom melewati lima status utama dengan dua jalur keluar. Order dianggap berhasil saat Terkirim, yaitu paket diterima pembeli; pencairan COD sesudahnya diurus Finance dan Ethix di luar OMS.
 
 | Status OMS | Pemicu | Sumber |
 | --- | --- | --- |
 | Baru | Order dibuat dari lead | SaaS CS AI / CS manusia |
-| Terverifikasi | Alamat lengkap dan nilai COD dikonfirmasi pembeli | SaaS CS AI / CS manusia |
+| Terverifikasi | Alamat lengkap dan nilai COD dikonfirmasi pembeli; untuk transfer, pembayaran dikonfirmasi | SaaS CS AI / CS manusia |
 | Di gudang | Ethix mengonfirmasi order diterima | WMS Ethix |
 | Dikirim | Resi terbit | WMS Ethix |
 | Terkirim | Paket diterima pembeli | WMS Ethix (status kurir) |
-| Selesai | COD cair cocok dengan nilai order; transfer langsung Selesai saat Terkirim | Laporan COD Ethix |
 | Batal | Dibatalkan sebelum Ethix mengemas | CS / pembeli |
 | RTS | Gagal antar atau COD ditolak, paket kembali ke gudang | WMS Ethix |
 
-&#91;embedded content: alur status order Soscom · 6 status, 2 jalur keluar\]
+&#91;embedded content: alur status order Soscom · 5 status, 2 jalur keluar\]
 
 Gagal antar memicu notifikasi ke SaaS CS AI supaya pembeli dihubungi sebelum paket benar-benar dikembalikan.
 
@@ -153,22 +154,22 @@ Gagal antar memicu notifikasi ke SaaS CS AI supaya pembeli dihubungi sebelum pak
 - SLA: resi terbit maksimal 24 jam setelah Terverifikasi. Lewat 18 jam ditandai kuning, lewat 24 jam merah.
 - RTS dilacak sampai barang diterima kembali di gudang Ethix. Alasan RTS wajib diisi dan dianalisis per CS, kota, dan iklan.
 
-### Profit & ROAS riil
+### Dashboard monitoring
 
-Gross profit dan ROAS dihitung dari uang yang benar-benar masuk:
+GMV dan ROAS dihitung dari nilai order yang Terkirim, bukan dari uang yang cair:
 
 ```latex
-GP = GMV_{cair} - HPP - Iklan - Biaya_{COD} - Ongkir - Ongkir_{RTS}
+GMV_{terkirim} = \text{nilai order berstatus Terkirim}
 ```
 
 ```latex
-ROAS_{riil} = GMV_{cair} \div Spend_{iklan}
+ROAS = GMV_{terkirim} \div Spend_{iklan}
 ```
 
-- GMV cair = COD yang cair ditambah transfer yang diterima, tidak menghitung order batal dan RTS.
-- Biaya iklan dialokasikan langsung ke order dari lead iklan itu, karena setiap lead membawa ad ID. Iklan yang menghasilkan lead tanpa order tetap tercatat sebagai biaya iklan itu.
-- ROAS riil per iklan menunjukkan iklan mana yang menghasilkan pembeli yang membayar, bukan sekadar lead atau order.
-- Angka OMS adalah angka operasional. Tiap bulan direkonsiliasi dengan P&L Finance per entitas, yang juga memuat biaya operasional di luar order.
+- Order batal dan RTS tidak dihitung ke GMV terkirim.
+- Spend iklan dialokasikan langsung ke order dari lead iklan itu, karena setiap lead membawa ad ID. Iklan yang menghasilkan lead tanpa order tetap tercatat sebagai spend iklan itu.
+- Funnel yang dipantau: lead → order → terverifikasi → dikirim → terkirim, per produk, iklan, dan CS.
+- Angka OMS adalah angka operasional. Pencairan COD, HPP, dan profit tetap dihitung Finance.
 
 ### Kinerja CS
 
@@ -177,20 +178,20 @@ ROAS_{riil} = GMV_{cair} \div Spend_{iklan}
 | Closing rate | Lead yang jadi order ÷ total lead |
 | Waktu respon | Rata-rata selisih lead masuk → balasan pertama |
 | Handover rate | Lead CS AI yang dioper ke CS manusia ÷ total lead CS AI |
-| GMV cair per lead | GMV cair dari order CS ÷ total lead |
+| GMV terkirim per lead | GMV terkirim dari order CS ÷ total lead |
 | RTS rate | Order COD yang RTS ÷ order COD terkirim |
 | Follow-up tertunda | Lead belum closing dalam 48 jam terakhir |
 
-CS AI dan CS manusia tampil berdampingan dengan metrik yang sama. Dengan GMV cair per lead dan RTS rate, perbandingannya sampai ke uang yang masuk, bukan hanya jumlah closing.
+CS AI dan CS manusia tampil berdampingan dengan metrik yang sama. Dengan GMV terkirim per lead dan RTS rate, perbandingannya sampai ke paket yang benar-benar diterima pembeli, bukan hanya jumlah closing.
 
 ## Role & hak akses
 
-Ada enam role login di tim GRASON. Ethix dan SaaS CS AI tidak login; keduanya memakai API key dengan izin terbatas. Asumsi biaya hanya bisa diubah Orkestrator dan Finance, dan setiap perubahan tercatat.
+Ada enam role login di tim GRASON. Ethix dan SaaS CS AI tidak login; keduanya memakai API key dengan izin terbatas. Harga jual hanya bisa diubah Orkestrator, dan setiap perubahan tercatat.
 
 | Role | Posisi GRASON | Lihat | Ubah |
 | --- | --- | --- | --- |
-| Orkestrator | Orkestrator & Co-Orkestrator | Semua modul | Semua, termasuk asumsi biaya, user, API key |
-| Finance | Finance | Order, COD, profit, ekspor per entitas | HPP, rekonsiliasi COD |
+| Orkestrator | Orkestrator & Co-Orkestrator | Semua modul | Semua, termasuk harga jual, user, API key |
+| Finance | Finance | Order, dashboard, ekspor per entitas | Tidak ada |
 | Sales & Operations | Sales & Operations | Order, pengiriman, RTS, stok | Batalkan order, tindak lanjut RTS, koreksi alamat |
 | CS Leader | CS Leader | Semua lead dan order, dashboard CS | Bagi lead, ambil alih handover dari CS AI |
 | CS | CS manusia | Lead dan order miliknya | Input lead, input dan verifikasi order |
@@ -199,8 +200,8 @@ Ada enam role login di tim GRASON. Ethix dan SaaS CS AI tidak login; keduanya me
 | Sistem | Izin API |
 | --- | --- |
 | SaaS CS AI | Buat/update lead, buat order, baca status order dan stok |
-| WMS Ethix | Kirim status pengiriman, stok, laporan COD; baca order yang ditujukan ke Ethix |
-| ADV AI | Kirim spend iklan harian, baca order dan GMV cair per iklan |
+| WMS Ethix | Kirim status pengiriman dan stok; baca order yang ditujukan ke Ethix |
+| ADV AI | Kirim spend iklan harian, baca order dan GMV terkirim per iklan |
 
 ## Roadmap
 
@@ -210,9 +211,9 @@ Estimasi 10 minggu sampai OMS Soscom go-live. Fase 0–2 membangun dan menguji O
 
 Kriteria gerbang yang diusulkan:
 
-- **Fase 1:** tim GRASON menjalankan alur lead → Selesai dari ujung ke ujung dengan data simulator selama satu minggu, tanpa bug yang menghentikan kerja.
+- **Fase 1:** tim GRASON menjalankan alur lead → Terkirim dari ujung ke ujung dengan data simulator selama satu minggu, tanpa bug yang menghentikan kerja.
 - **Fase 3:** lead dan order nyata dari SaaS CS AI tercatat tanpa selisih, order uji sampai ke Ethix dan resinya kembali tanpa input manual, dan spend harian dari ADV AI masuk.
-- **Fase 4:** dimulai dengan satu produk pilot; go-live penuh setelah dua minggu jalan paralel dengan EPOS dan selisih order, resi, serta COD di bawah 0,5%.
+- **Fase 4:** dimulai dengan satu produk pilot; go-live penuh setelah dua minggu jalan paralel dengan EPOS dan selisih order, resi, dan status di bawah 0,5%.
 
 ## Risiko & keputusan
 
@@ -220,7 +221,7 @@ Risiko terbesar bukan teknis: mengelola order Soscom GRASON langsung ke Ethix be
 
 | Risiko | Dampak | Mitigasi |
 | --- | --- | --- |
-| Belum ada persetujuan keluar dari WACOS/EPOS | Integrasi Ethix tertahan | Ajukan dengan data: SLA, RTS, ROAS riil; mulai dari satu produk pilot |
+| Belum ada persetujuan keluar dari WACOS/EPOS | Integrasi Ethix tertahan | Ajukan dengan data: SLA, RTS, ROAS per iklan; mulai dari satu produk pilot |
 | Penyesuaian di sisi Ethix lambat | Fase 3 mundur | Pertukaran file CSV terjadwal sebagai jembatan dengan format yang sama |
 | Kontrak API berubah selama SaaS CS AI dibangun paralel | Integrasi rusak diam-diam | API berversi (`/v1`), tes kontrak bersama, perubahan dicatat di catatan keputusan |
 | Order tercatat dua kali selama transisi | Barang terkirim ganda | Cut-over per produk dengan tanggal jelas; produk yang sudah pindah tidak diinput lagi di EPOS |
@@ -237,7 +238,6 @@ Keputusan yang perlu diambil sebelum Fase 1 berjalan jauh:
 - [ ] Data pelanggan dan lead lama: dimigrasi dari WACOS atau mulai dari nol (berpengaruh ke deteksi repeat order dan riwayat RTS)
 - [ ] Event pembelian ke Meta dikirim OMS langsung atau lewat ADV AI
 - [ ] Developer pendamping yang menjalankan Claude Code dan memegang repo
-- [ ] HPP resmi per SKU dari Finance
 - [ ] VPS baru khusus OMS
 
 ## Bridging ke Claude Code
@@ -251,7 +251,7 @@ grason-oms/
   CLAUDE.md
   docker-compose.yml
   apps/
-    api/            # NestJS: lead, order, stok, COD, profit, CS
+    api/            # NestJS: lead, order, stok, RTS, dashboard, CS
     web/            # Next.js dashboard
     worker/         # BullMQ: job integrasi dan sinkronisasi
   packages/
@@ -281,8 +281,8 @@ Blueprint lengkap: docs/blueprint.md. Baca sebelum mengubah skema atau alur stat
 - TypeScript strict di semua app. Uang = integer rupiah.
 - Stok fisik bersumber dari WMS Ethix; OMS tidak pernah mengubah stok gudang.
 - Data dari sistem lain unik di (sumber, external_id); semua job integrasi idempotent.
-- Status OMS: baru, terverifikasi, di_gudang, dikirim, terkirim, selesai, batal, rts.
-- Order COD baru selesai saat COD cair cocok dengan nilai order.
+- Status OMS: baru, terverifikasi, di_gudang, dikirim, terkirim, batal, rts.
+- OMS tidak memegang uang: tidak ada pencairan COD, HPP, atau profit. GMV dan ROAS dihitung dari order berstatus terkirim.
 - Setiap order membawa entitas (SSR/FHI) dari produknya.
 - Kontrak API untuk CS AI dan Ethix ada di docs/api-contract; perubahan = versi baru.
 - Waktu disimpan UTC, ditampilkan Asia/Jakarta.
@@ -299,6 +299,6 @@ Urutan prompt pembuka per fase:
 
 1. **Fase 0 – Fondasi & kontrak data:** "Baca CLAUDE.md dan docs/blueprint.md. Buat monorepo, docker-compose (Postgres, Redis), skema Prisma sesuai bagian Model data, seed 4 produk GRASON dengan entitasnya, login + role + API key. Tulis spesifikasi OpenAPI untuk SaaS CS AI, ADV AI, dan Ethix di docs/api-contract. Rencanakan dulu, tunggu persetujuan."
 2. **Fase 1 – OMS + simulator:** "Bangun modul lead, order, verifikasi COD, alur status, stok, dan dashboard. Buat packages/simulator yang memanggil API OMS persis sesuai kontrak: CS AI palsu membuat lead dan order, Ethix palsu mengirim status, resi, RTS, dan stok. Sertakan tes setiap transisi status."
-3. **Fase 2 – Profit, ROAS & kinerja CS:** "Tambahkan laporan COD dan spend iklan ke simulator. Bangun rekonsiliasi COD per resi, analisis RTS, GP per order, ROAS riil per iklan, dan dashboard kinerja CS AI vs CS manusia."
+3. **Fase 2 – Dashboard, ROAS & kinerja CS:** "Tambahkan spend iklan ke simulator. Bangun dashboard GMV terkirim, funnel lead sampai terkirim, ROAS per iklan, analisis RTS, dan kinerja CS AI vs CS manusia."
 4. **Fase 3 – Semua integrasi:** "Bangun adaptor nyata di packages/integrations untuk SaaS CS AI, ADV AI (termasuk event pembelian ke Meta), dan Ethix dengan fallback CSV. Jalankan tes kontrak yang sama dengan simulator. Semua idempotent dan tercatat di integration\_events."
 5. **Fase 4 – Pilot:** "Siapkan staging, skrip rekonsiliasi OMS vs EPOS selama jalan paralel, backup harian, monitoring, dan checklist go-live untuk produk pilot."

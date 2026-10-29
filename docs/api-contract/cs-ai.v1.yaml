@@ -442,10 +442,10 @@ components:
       enum: [baru, direspon, follow_up, closing, gagal]
     StatusOrder:
       type: string
-      enum: [baru, terverifikasi, di_gudang, dikirim, terkirim, selesai, batal, rts]
+      enum: [baru, terverifikasi, di_gudang, dikirim, terkirim, batal, rts]
       description: |
-        `selesai` untuk COD = COD cair dan cocok dengan nilai order; untuk transfer =
-        paket terkirim.
+        `terkirim` = paket diterima pembeli; status akhir sukses. OMS tidak mencatat
+        pencairan COD (tetap antara Ethix dan Finance).
     MetodeBayar:
       type: string
       enum: [cod, transfer]

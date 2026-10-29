@@ -29,12 +29,15 @@ describe('matriks role', () => {
     }
   });
 
-  it('asumsi biaya dan HPP hanya bisa diubah Orkestrator dan Finance', () => {
-    for (const role of ROLE) {
-      const boleh = role === 'orkestrator' || role === 'finance';
-      expect(punyaIzin(role, 'asumsi_biaya.ubah')).toBe(boleh);
-      expect(punyaIzin(role, 'hpp.ubah')).toBe(boleh);
-    }
+  it('tidak ada izin COD, HPP, atau profit; uang di luar OMS', () => {
+    expect(IZIN.filter((i) => /^(cod|hpp|profit|asumsi_biaya)\./.test(i))).toEqual([]);
+    expect(SCOPE.filter((s) => s.startsWith('cod.'))).toEqual([]);
+  });
+
+  it('Finance hanya melihat order dan mengekspor per entitas', () => {
+    expect([...IZIN_ROLE.finance].sort()).toEqual(
+      ['ekspor.entitas', 'order.lihat_semua', 'produk.lihat'].sort(),
+    );
   });
 
   it('Finance dan PIC Iklan tidak melihat nomor WA dan alamat', () => {
@@ -58,7 +61,7 @@ describe('scope API key', () => {
 
   it('menolak scope sistem lain', () => {
     expect(scopeValidUntukSistem('cs_ai', ['lead.tulis', 'stok.baca'])).toBe(true);
-    expect(scopeValidUntukSistem('cs_ai', ['cod.tulis'])).toBe(false);
+    expect(scopeValidUntukSistem('cs_ai', ['stok.tulis'])).toBe(false);
     expect(scopeValidUntukSistem('ethix', ['order.tulis'])).toBe(false);
   });
 });

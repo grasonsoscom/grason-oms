@@ -10,11 +10,9 @@ interface ProdukSatuan {
   hargaJual: number;
   /** PLACEHOLDER sampai ada data resmi. */
   beratGram: number;
-  /** PLACEHOLDER sampai Finance memberi HPP resmi. */
-  hpp: number;
 }
 
-// SKU dan berat adalah PLACEHOLDER; harga jual resmi; HPP PLACEHOLDER.
+// SKU dan berat adalah PLACEHOLDER; harga jual resmi. HPP di luar OMS (keputusan 0003).
 export const PRODUK_SATUAN: readonly ProdukSatuan[] = [
   {
     sku: 'VVG-01',
@@ -22,7 +20,6 @@ export const PRODUK_SATUAN: readonly ProdukSatuan[] = [
     entitas: 'SSR',
     hargaJual: 42_000,
     beratGram: 250,
-    hpp: 12_600,
   },
   {
     sku: 'BSR-01',
@@ -30,7 +27,6 @@ export const PRODUK_SATUAN: readonly ProdukSatuan[] = [
     entitas: 'FHI',
     hargaJual: 95_000,
     beratGram: 250,
-    hpp: 28_500,
   },
   {
     sku: 'KKT-01',
@@ -38,7 +34,6 @@ export const PRODUK_SATUAN: readonly ProdukSatuan[] = [
     entitas: 'FHI',
     hargaJual: 220_000,
     beratGram: 150,
-    hpp: 66_000,
   },
   {
     sku: 'WUP-01',
@@ -46,7 +41,6 @@ export const PRODUK_SATUAN: readonly ProdukSatuan[] = [
     entitas: 'FHI',
     hargaJual: 90_000,
     beratGram: 250,
-    hpp: 27_000,
   },
 ];
 
@@ -56,9 +50,6 @@ export const ISI_PAKET = [2, 3] as const;
 export function skuPaket(skuSatuan: string, isi: number): string {
   return `${skuSatuan.replace(/-01$/, '')}-P${isi}`;
 }
-
-/** HPP placeholder berlaku sejak awal 2026 (WIB). */
-const HPP_BERLAKU_MULAI = new Date('2025-12-31T17:00:00Z');
 
 export interface OpsiSeed {
   admin?: { email: string; password: string; nama: string };
@@ -85,17 +76,6 @@ export async function seed(prisma: PrismaClient, opsi: OpsiSeed = {}): Promise<v
         entitas: p.entitas,
         hargaJual: p.hargaJual,
         beratGram: p.beratGram,
-      },
-    });
-
-    await prisma.productCost.upsert({
-      where: { productId_berlakuMulai: { productId: satuan.id, berlakuMulai: HPP_BERLAKU_MULAI } },
-      update: {},
-      create: {
-        productId: satuan.id,
-        hpp: p.hpp,
-        berlakuMulai: HPP_BERLAKU_MULAI,
-        catatan: 'PLACEHOLDER – menunggu HPP resmi Finance',
       },
     });
 

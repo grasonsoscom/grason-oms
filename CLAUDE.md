@@ -15,11 +15,10 @@ Integrasi nyata baru dibangun di Fase 3.
 - TypeScript strict di semua app. Uang = integer rupiah.
 - Stok fisik bersumber dari WMS Ethix; OMS tidak pernah mengubah stok gudang.
 - Data dari sistem lain unik di (sumber, external_id); semua job integrasi idempotent.
-- Status OMS: baru, terverifikasi, di_gudang, dikirim, terkirim, selesai, batal, rts.
-- Order COD baru selesai saat COD cair cocok dengan nilai order.
+- Status OMS: baru, terverifikasi, di_gudang, dikirim, terkirim, batal, rts.
+- OMS tidak memegang uang: tidak ada pencairan COD, HPP, atau profit. GMV dan ROAS dihitung dari order berstatus terkirim.
 - Setiap order membawa entitas (SSR/FHI) dari produknya:
   Vivagoat = SSR; Bio Serea, Kapsul Kutuk, Wight Up = FHI.
-- HPP di seed adalah placeholder sampai Finance memberi angka resmi.
 - Kontrak API untuk SaaS CS AI, ADV AI, dan Ethix ada di docs/api-contract;
   perubahan kontrak = versi baru, bukan mengubah versi lama.
 - Simulator (packages/simulator) hanya boleh memanggil OMS lewat API yang sama

@@ -6,7 +6,6 @@ import { PrismaService } from '../prisma/prisma.service';
 export class ProductsController {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** HPP tidak ikut; hanya role dengan izin profit yang boleh melihatnya (Fase 2). */
   @Perlu('produk.lihat')
   @Get()
   daftar() {

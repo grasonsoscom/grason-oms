@@ -1,5 +1,5 @@
 // Skema OMS GRASON. Sumber: docs/blueprint.md bagian "Model data"
-// dan docs/decisions/0001-fondasi-fase-0.md.
+// dan docs/decisions/0001-fondasi-fase-0.md, 0003-oms-tanpa-uang.md.
 // Uang = Int rupiah. Waktu = timestamptz UTC. Perubahan = migrasi baru.
 
 generator client {
@@ -26,7 +26,6 @@ enum OrderStatus {
   di_gudang
   dikirim
   terkirim
-  selesai
   batal
   rts
 }
@@ -105,7 +104,6 @@ model Product {
   createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  costs          ProductCost[]
   bundleItems    Bundle[]        @relation("BundlePaket")
   componentOf    Bundle[]        @relation("BundleKomponen")
   orderItems     OrderItem[]
@@ -114,23 +112,6 @@ model Product {
   adSpend        AdSpendDaily[]
 
   @@map("products")
-}
-
-/// Riwayat HPP. HPP baru = baris baru dengan berlaku_mulai baru; baris lama tidak diubah.
-model ProductCost {
-  id              String   @id @default(uuid()) @db.Uuid
-  productId       String   @map("product_id") @db.Uuid
-  hpp             Int
-  berlakuMulai    DateTime @map("berlaku_mulai") @db.Timestamptz(3)
-  catatan         String?
-  dibuatOlehId    String?  @map("dibuat_oleh_id") @db.Uuid
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-
-  product   Product @relation(fields: [productId], references: [id])
-  dibuatOleh User?  @relation(fields: [dibuatOlehId], references: [id])
-
-  @@unique([productId, berlakuMulai])
-  @@map("product_costs")
 }
 
 /// Paket (isi 2/3) → komponen. Dikirim ke Ethix sebagai SKU komponen.
@@ -263,7 +244,8 @@ model Order {
 
   terverifikasiAt DateTime? @map("terverifikasi_at") @db.Timestamptz(3)
   dikirimKeEthixAt DateTime? @map("dikirim_ke_ethix_at") @db.Timestamptz(3)
-  selesaiAt       DateTime? @map("selesai_at") @db.Timestamptz(3)
+  /// Status akhir sukses; OMS tidak mencatat pencairan COD.
+  terkirimAt      DateTime? @map("terkirim_at") @db.Timestamptz(3)
   dibatalkanAt    DateTime? @map("dibatalkan_at") @db.Timestamptz(3)
   createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -276,8 +258,6 @@ model Order {
   statusHistory OrderStatusHistory[]
   shipments     Shipment[]
   returns       Return[]
-  codSettlements CodSettlement[]
-  cost          OrderCost?
 
   @@unique([sumber, externalId])
   @@unique([orderGroupId, entitas])
@@ -336,8 +316,7 @@ model Shipment {
   createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  order          Order           @relation(fields: [orderId], references: [id])
-  codSettlements CodSettlement[]
+  order Order @relation(fields: [orderId], references: [id])
 
   @@index([orderId])
   @@map("shipments")
@@ -378,33 +357,9 @@ model StockSnapshot {
   @@map("stock_snapshots")
 }
 
-// ───────────────────────── Uang ─────────────────────────
+// ───────────────────────── Iklan ─────────────────────────
 
-/// COD yang benar-benar cair per resi, dari laporan Ethix.
-model CodSettlement {
-  id              String   @id @default(uuid()) @db.Uuid
-  sumber          Sumber   @default(ethix)
-  externalId      String   @map("external_id")
-  resi            String
-  shipmentId      String?  @map("shipment_id") @db.Uuid
-  orderId         String?  @map("order_id") @db.Uuid
-  nominalCair     Int      @map("nominal_cair")
-  potonganCod     Int      @default(0) @map("potongan_cod")
-  potonganOngkir  Int      @default(0) @map("potongan_ongkir")
-  /// Tanggal cair (WIB).
-  tanggalCair     DateTime @map("tanggal_cair") @db.Date
-  /// nominal cair + potongan − nilai COD order. 0 = cocok.
-  selisih         Int?
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-
-  shipment Shipment? @relation(fields: [shipmentId], references: [id])
-  order    Order?    @relation(fields: [orderId], references: [id])
-
-  @@unique([sumber, externalId])
-  @@index([resi])
-  @@map("cod_settlements")
-}
-
+/// Spend iklan harian dari ADV AI. Data iklan, bukan uang yang dipegang OMS.
 model AdSpendDaily {
   id         String   @id @default(uuid()) @db.Uuid
   sumber     Sumber   @default(adv_ai)
@@ -424,22 +379,6 @@ model AdSpendDaily {
   @@unique([sumber, externalId])
   @@unique([tanggal, adId])
   @@map("ad_spend_daily")
-}
-
-/// Biaya per order, diisi saat order selesai atau RTS.
-model OrderCost {
-  id          String   @id @default(uuid()) @db.Uuid
-  orderId     String   @unique @map("order_id") @db.Uuid
-  hpp         Int
-  biayaIklan  Int      @default(0) @map("biaya_iklan")
-  biayaCod    Int      @default(0) @map("biaya_cod")
-  ongkir      Int      @default(0)
-  ongkirRts   Int      @default(0) @map("ongkir_rts")
-  dihitungAt  DateTime @map("dihitung_at") @db.Timestamptz(3)
-
-  order Order @relation(fields: [orderId], references: [id])
-
-  @@map("order_costs")
 }
 
 // ───────────────────────── Integrasi & audit ─────────────────────────
@@ -472,7 +411,7 @@ model AuditLog {
   pelakuTipe   TipePelaku @map("pelaku_tipe")
   userId       String?    @map("user_id") @db.Uuid
   apiKeyId     String?    @map("api_key_id") @db.Uuid
-  /// mis. auth.login, user.nonaktif, apikey.buat, hpp.ubah, ekspor.entitas
+  /// mis. auth.login, user.nonaktif, apikey.buat, ekspor.entitas
   aksi         String
   objekTipe    String?    @map("objek_tipe")
   objekId      String?    @map("objek_id")
@@ -518,7 +457,6 @@ model User {
   leads         Lead[]
   orders        Order[]
   statusHistory OrderStatusHistory[]
-  productCosts  ProductCost[]
   auditLogs     AuditLog[]
 
   @@map("users")

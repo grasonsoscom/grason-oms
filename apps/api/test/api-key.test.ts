@@ -21,9 +21,9 @@ class UjiController {
     return { ok: true };
   }
 
-  @PerluScope('cod.tulis')
-  @Get('cod')
-  cod() {
+  @PerluScope('stok.tulis')
+  @Get('stok-ethix')
+  stokEthix() {
     return { ok: true };
   }
 
@@ -101,7 +101,7 @@ describe('API key', () => {
       .http()
       .post('/api/v1/api-keys')
       .set('Cookie', admin)
-      .send({ nama: 'Salah', sistem: 'cs_ai', scopes: ['cod.tulis'] })
+      .send({ nama: 'Salah', sistem: 'cs_ai', scopes: ['stok.tulis'] })
       .expect(400);
   });
 
@@ -119,8 +119,8 @@ describe('API key', () => {
   it('scope ditegakkan per endpoint', async () => {
     const { kunci } = await buatKunci('cs_ai');
     await ctx.http().get('/api/v1/uji/stok').set('X-Api-Key', kunci).expect(200);
-    const res = await ctx.http().get('/api/v1/uji/cod').set('X-Api-Key', kunci).expect(403);
-    expect(res.body.error.pesan).toContain('cod.tulis');
+    const res = await ctx.http().get('/api/v1/uji/stok-ethix').set('X-Api-Key', kunci).expect(403);
+    expect(res.body.error.pesan).toContain('stok.tulis');
   });
 
   it('scope terbatas yang dipilih saat dibuat', async () => {

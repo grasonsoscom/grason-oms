@@ -94,7 +94,8 @@ describe('sesi', () => {
     const cookie = await loginSebagai(ctx, 'finance');
     const res = await ctx.http().get('/api/v1/auth/me').set('Cookie', cookie).expect(200);
     expect(res.body).toMatchObject({ role: 'finance', roleLabel: 'Finance' });
-    expect(res.body.izin).toContain('hpp.ubah');
+    expect(res.body.izin).toContain('ekspor.entitas');
+    expect(res.body.izin).not.toContain('apikey.kelola');
   });
 
   it('logout mencabut sesi', async () => {

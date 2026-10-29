@@ -10,11 +10,13 @@ export const ORDER_STATUS = [
   'di_gudang',
   'dikirim',
   'terkirim',
-  'selesai',
   'batal',
   'rts',
 ] as const;
 export type OrderStatus = (typeof ORDER_STATUS)[number];
+
+/** Status akhir sukses. OMS tidak mencatat pencairan COD (keputusan 0003). */
+export const STATUS_AKHIR_SUKSES = 'terkirim' satisfies OrderStatus;
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   baru: 'Baru',
@@ -22,7 +24,6 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   di_gudang: 'Di gudang',
   dikirim: 'Dikirim',
   terkirim: 'Terkirim',
-  selesai: 'Selesai',
   batal: 'Batal',
   rts: 'RTS',
 };

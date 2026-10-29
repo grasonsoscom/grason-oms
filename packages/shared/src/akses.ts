@@ -39,12 +39,7 @@ export const IZIN = [
   'pengiriman.lihat',
   'rts.lihat',
   'rts.tindak_lanjut',
-  'cod.lihat',
-  'cod.rekonsiliasi',
-  'profit.lihat',
   'ekspor.entitas',
-  'hpp.ubah',
-  'asumsi_biaya.ubah',
   'iklan.lihat',
   'dashboard_cs.lihat',
   'pelanggan.pii.lihat',
@@ -56,16 +51,8 @@ export type Izin = (typeof IZIN)[number];
 
 export const IZIN_ROLE: Record<Role, readonly Izin[]> = {
   orkestrator: IZIN,
-  finance: [
-    'produk.lihat',
-    'order.lihat_semua',
-    'cod.lihat',
-    'cod.rekonsiliasi',
-    'profit.lihat',
-    'ekspor.entitas',
-    'hpp.ubah',
-    'asumsi_biaya.ubah',
-  ],
+  // Pencairan COD, HPP, dan profit di luar OMS (keputusan 0003).
+  finance: ['produk.lihat', 'order.lihat_semua', 'ekspor.entitas'],
   sales_ops: [
     'produk.lihat',
     'stok.lihat',
@@ -114,7 +101,6 @@ export const SCOPE = [
   'harga.baca',
   'pengiriman.tulis',
   'stok.tulis',
-  'cod.tulis',
   'order_ethix.baca',
   'spend_iklan.tulis',
   'performa_iklan.baca',
@@ -123,7 +109,7 @@ export type Scope = (typeof SCOPE)[number];
 
 export const SCOPE_SISTEM: Record<Sistem, readonly Scope[]> = {
   cs_ai: ['lead.tulis', 'order.tulis', 'order.baca', 'stok.baca', 'harga.baca'],
-  ethix: ['pengiriman.tulis', 'stok.tulis', 'cod.tulis', 'order_ethix.baca'],
+  ethix: ['pengiriman.tulis', 'stok.tulis', 'order_ethix.baca'],
   adv_ai: ['spend_iklan.tulis', 'performa_iklan.baca'],
 };
 

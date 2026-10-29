@@ -12,6 +12,11 @@ info:
     - Event pembelian ke Meta Conversions API: endpoint `GET /ads/purchases` disiapkan
       untuk skenario "lewat ADV AI". Keputusan apakah OMS mengirim langsung atau lewat
       ADV AI belum diambil; endpoint ini berstatus draft.
+    - **Keputusan terbuka:** kapan event Purchase dikirim. Draft memakai saat order
+      Selesai (COD cair), tetapi COD sering cair lebih dari 7 hari setelah klik, melewati
+      batas 7 hari Meta Conversions API. Usulan: kirim saat Terverifikasi atau Terkirim,
+      lalu koreksi bila order berakhir RTS/batal. Lihat
+      `docs/decisions/0002-waktu-event-purchase-meta.md`.
 
     Aturan umum:
     - API key sistem `adv_ai` (scope `spend_iklan.tulis`, `performa_iklan.baca`).
@@ -153,12 +158,23 @@ paths:
     get:
       tags: [Performa]
       operationId: daftarPembelian
-      summary: Event pembelian (COD cair) untuk Meta Conversions API – draft
+      summary: Event pembelian untuk Meta Conversions API – draft
+      x-keputusan-terbuka:
+        - 'Jalur event: OMS langsung ke Meta atau lewat ADV AI (docs/decisions/0001-fondasi-fase-0.md).'
+        - 'Waktu event Purchase: Terverifikasi, Terkirim, atau Selesai, plus koreksi RTS (docs/decisions/0002-waktu-event-purchase-meta.md).'
       description: |
-        Satu event per order yang Selesai (COD cair cocok, atau transfer terkirim),
-        dari lead yang membawa `ad_id`. Nomor WA hanya dikirim dalam bentuk hash
-        SHA-256 (format Meta: angka saja, diawali kode negara). Status draft sampai
-        keputusan jalur event ke Meta diambil.
+        Satu event per order dari lead yang membawa `ad_id`. Nomor WA hanya dikirim
+        dalam bentuk hash SHA-256 (format Meta: angka saja, diawali kode negara).
+
+        **Keputusan terbuka – waktu event.** Draft ini membuat event saat order Selesai
+        (COD cair cocok, atau transfer terkirim). Meta Conversions API menolak event
+        dengan `event_time` lebih dari 7 hari ke belakang dan memakai jendela atribusi
+        7 hari setelah klik, sementara COD sering cair lebih lambat dari itu. Usulan:
+        event dibuat saat Terverifikasi atau Terkirim, ditambah event koreksi bila order
+        berakhir RTS atau batal. Pemicu event, arti `terjadi_at` dan `nilai`, serta
+        skema koreksi menyusul setelah keputusan diambil.
+
+        Status draft sampai jalur dan waktu event ke Meta diputuskan.
       parameters:
         - name: sejak
           in: query
@@ -331,14 +347,14 @@ components:
         nilai:
           allOf:
             - $ref: '#/components/schemas/Rupiah'
-          description: GMV cair order.
+          description: GMV cair order. Bisa berubah menjadi nilai order bila event dikirim sebelum COD cair (keputusan terbuka).
         mata_uang:
           type: string
           const: IDR
         terjadi_at:
           type: string
           format: date-time
-          description: Waktu order Selesai (UTC).
+          description: Waktu order Selesai (UTC). Mengikuti pemicu event yang dipilih (keputusan terbuka).
         no_wa_sha256:
           type: string
           description: SHA-256 hex dari nomor WA `628…`.

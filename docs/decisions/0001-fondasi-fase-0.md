@@ -102,7 +102,8 @@ dengan lima jawaban atas pertanyaan terbuka (bagian "Jawaban rencana").
 - `ethix.v1.yaml` memuat dua arah: endpoint OMS untuk Ethix, dan usulan endpoint
   penerima order di sisi Ethix (`servers` per path).
 - Event pembelian untuk Meta (`GET /ads/purchases`) berstatus draft sampai jalur
-  OMS-langsung vs lewat ADV AI diputuskan.
+  OMS-langsung vs lewat ADV AI diputuskan. Waktu pengiriman event Purchase dibahas
+  terpisah di [0002](0002-waktu-event-purchase-meta.md).
 
 ## Belum diputuskan (dibawa ke fase berikutnya)
 

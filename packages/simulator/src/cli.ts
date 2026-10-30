@@ -8,11 +8,14 @@
  *   --api http://localhost:3001
  *   --langsung                 jalan terus dengan jam nyata (Ctrl+C untuk berhenti)
  *   --lead-per-jam 30 --percepat 60   hanya untuk --langsung
+ *
+ * Keadaan gudang Ethix palsu disimpan di .demo/gudang-ethix.json. --langsung memakainya
+ * untuk melanjutkan order yang masih di gudang atau di jalan dari run sebelumnya.
  */
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { config as muatEnv } from 'dotenv';
-import { AKAR_REPO, muatKonfigurasi } from './konfigurasi';
+import { AKAR_REPO, muatGudang, muatKonfigurasi, simpanGudang } from './konfigurasi';
 import { PELUANG_DEFAULT, Simulasi, type Laporan, type Peluang } from './simulasi';
 
 muatEnv({ path: path.join(AKAR_REPO, '.env'), quiet: true });
@@ -92,6 +95,9 @@ async function main(): Promise<void> {
     peluang,
     stokAwal: angka('stok-awal', v['stok-awal'] as string | undefined, 150, 1),
     log: (p) => console.log(`  · ${p}`),
+    // Mode langsung melanjutkan gudang Ethix dari run sebelumnya (mis. pengisian 7 hari).
+    gudang: v.langsung ? muatGudang() : null,
+    simpanGudang: (k) => simpanGudang(k),
   });
 
   if (v.langsung) {

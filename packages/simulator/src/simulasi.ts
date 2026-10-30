@@ -23,6 +23,8 @@ type EventPengiriman = Ethix['schemas']['EventPengiriman'];
 type HasilBatch = Ethix['schemas']['HasilBatch'];
 
 const MENIT = 60_000;
+/** API sedang restart (mis. pnpm dev mode watch). */
+const apiMati = (e: unknown) => e instanceof TypeError && e.message === 'fetch failed';
 const JAM = 60 * MENIT;
 const HARI = 24 * JAM;
 
@@ -75,6 +77,10 @@ export interface OpsiSimulasi {
   stokAwal: number;
   sekarang?: Date;
   log?: (pesan: string) => void;
+  /** Mode langsung: lanjutkan gudang dari run sebelumnya, bukan stok awal baru. */
+  gudang?: KeadaanGudang | null;
+  /** Dipanggil di akhir run dan berkala di mode langsung. */
+  simpanGudang?: (k: KeadaanGudang) => void;
 }
 
 export interface Laporan {
@@ -93,6 +99,29 @@ export interface Laporan {
   rts: number;
   galat: number;
   masihBerjalan: number;
+}
+
+/** Satu langkah gudang Ethix palsu. Berupa data supaya bisa disimpan dan dilanjutkan. */
+export interface LangkahEthix {
+  waktu: number;
+  event: Omit<EventPengiriman, 'event_id' | 'terjadi_at'>;
+  /** Stok gudang keluar saat dikirim, masuk saat barang kembali layak jual. */
+  stok?: { arah: 'keluar' | 'masuk'; items: { sku: string; qty: number }[] };
+}
+
+/**
+ * Keadaan gudang Ethix palsu. Ethix sungguhan menyimpan datanya sendiri; simulator
+ * menyimpannya di .demo/ supaya mode langsung bisa melanjutkan order dari pengisian mundur.
+ */
+export interface KeadaanGudang {
+  versi: 1;
+  stok: Record<string, number>;
+  snapshotTerakhir: number;
+  resi: number;
+  /** Nomor order yang sudah ditarik Ethix. */
+  dilihat: string[];
+  /** Langkah pengiriman yang sudah dijadwalkan tetapi belum terjadi. */
+  tertunda: LangkahEthix[];
 }
 
 interface Pelanggan {
@@ -130,6 +159,8 @@ export class Simulasi {
   private snapshotTerakhir = 0;
   private dilihatEthix = new Set<string>();
   private resi = 0;
+  private tertunda = new Map<number, LangkahEthix>();
+  private idLangkah = 0;
   private leader: KlienUser | null = null;
   private salesOps: KlienUser | null = null;
   private cs: { klien: KlienUser; id: string }[] = [];
@@ -190,6 +221,7 @@ export class Simulasi {
     }
 
     await this.prosesSampai(this.sekarang);
+    this.o.simpanGudang?.(this.keadaanGudang());
     return this.ringkas();
   }
 
@@ -211,7 +243,8 @@ export class Simulasi {
     }
     const mulai = Date.now();
     this.kini = mulai;
-    this.isiStokAwal();
+    if (this.o.gudang) this.pulihkanGudang(this.o.gudang);
+    else this.isiStokAwal();
     await this.kirimStok(new Date(mulai));
 
     const ulang = (setiap: number, jalan: (t: Date) => Promise<void>) => {
@@ -236,11 +269,18 @@ export class Simulasi {
     };
     this.jadwalkan(mulai, leadBerikutnya);
 
+    let disimpan = Date.now();
     while (!opsi.berhenti()) {
       this.sekarang = Date.now();
       await this.prosesSampai(this.sekarang);
+      // Disimpan di antara peristiwa, saat tidak ada permintaan yang sedang berjalan.
+      if (this.o.simpanGudang && Date.now() - disimpan > 10_000) {
+        this.o.simpanGudang(this.keadaanGudang());
+        disimpan = Date.now();
+      }
       await new Promise((r) => setTimeout(r, 500));
     }
+    this.o.simpanGudang?.(this.keadaanGudang());
     return this.ringkas();
   }
 
@@ -251,8 +291,8 @@ export class Simulasi {
       try {
         await ev.jalan(new Date(ev.waktu));
       } catch (e) {
-        if (this.langsung && e instanceof TypeError && e.message === 'fetch failed') {
-          // API sedang restart (mis. pnpm dev mode watch): ulangi peristiwa sebentar lagi.
+        if (this.langsung && apiMati(e)) {
+          // API sedang restart: ulangi peristiwa sebentar lagi.
           // Aman diulang karena external_id dan event_id peristiwa yang sama tidak berubah.
           this.log('API tidak bisa dihubungi, dicoba lagi dalam 5 detik');
           this.antrean.unshift({ ...ev, waktu: Date.now() + 5000 });
@@ -724,6 +764,7 @@ export class Simulasi {
   private jadwalkanPengiriman(t: number, o: OrderEthix): void {
     const nomor = o.order_nomor;
     const ref = `ETX-${nomor.slice(4)}`;
+    const items = o.items.map((x) => ({ sku: x.sku, qty: x.qty }));
     const gudang = t + this.a.menit(20, 180);
     const kemas = gudang + this.a.menit(30, 240);
     // Sebagian kecil terlambat terbit resi supaya penanda SLA terlihat.
@@ -735,93 +776,133 @@ export class Simulasi {
       .replace(/[^A-Z]/gi, '')
       .slice(0, 3)
       .toUpperCase()}${String(this.resi).padStart(6, '0')}${this.a.digit(4)}`;
+    const langkah = (
+      waktu: number,
+      event: LangkahEthix['event'],
+      stok?: LangkahEthix['stok'],
+    ): void => this.jadwalkanLangkah(stok ? { waktu, event, stok } : { waktu, event });
 
-    this.jadwalkan(gudang, (w) =>
-      this.event(w, { order_nomor: nomor, ethix_ref: ref, jenis: 'diterima_gudang' }),
-    );
-    this.jadwalkan(kemas, (w) =>
-      this.event(w, { order_nomor: nomor, ethix_ref: ref, jenis: 'dikemas' }),
-    );
-    this.jadwalkan(kirim, async (w) => {
-      await this.event(w, {
+    langkah(gudang, { order_nomor: nomor, ethix_ref: ref, jenis: 'diterima_gudang' });
+    langkah(kemas, { order_nomor: nomor, ethix_ref: ref, jenis: 'dikemas' });
+    langkah(
+      kirim,
+      {
         order_nomor: nomor,
         ethix_ref: ref,
         jenis: 'dikirim',
         kurir,
         resi,
         status_kurir: 'PICKED_UP',
-      });
-      this.laporan.dikirim += 1;
-      for (const item of o.items)
-        this.stok.set(item.sku, (this.stok.get(item.sku) ?? 0) - item.qty);
-      await this.kirimStok(w);
-    });
+      },
+      { arah: 'keluar', items },
+    );
 
     if (this.a.peluang(this.p.rts)) {
       let t2 = kirim + this.a.menit(24 * 60, 72 * 60);
       const ulang = this.a.peluang(0.5) ? 2 : 1;
       for (let n = 1; n <= ulang; n += 1) {
-        const pada = t2;
-        this.jadwalkan(pada, (w) =>
-          this.event(w, {
-            order_nomor: nomor,
-            jenis: 'gagal_antar',
-            alasan: this.a.pilih(ALASAN_GAGAL_ANTAR),
-            percobaan_antar: n,
-            status_kurir: 'FAILED_DELIVERY',
-          }),
-        );
+        langkah(t2, {
+          order_nomor: nomor,
+          jenis: 'gagal_antar',
+          alasan: this.a.pilih(ALASAN_GAGAL_ANTAR),
+          percobaan_antar: n,
+          status_kurir: 'FAILED_DELIVERY',
+        });
         t2 += this.a.menit(20 * 60, 30 * 60);
       }
-      this.jadwalkan(t2, async (w) => {
-        await this.event(w, {
-          order_nomor: nomor,
-          jenis: 'rts',
-          alasan:
-            o.metode_bayar === 'cod' && this.a.peluang(0.5)
-              ? 'COD ditolak penerima'
-              : this.a.pilih(ALASAN_RTS),
-          ongkir_balik: this.a.antara(8, 15) * 1000,
-          status_kurir: 'RETURN_TO_SENDER',
-        });
-        this.laporan.rts += 1;
+      langkah(t2, {
+        order_nomor: nomor,
+        jenis: 'rts',
+        alasan:
+          o.metode_bayar === 'cod' && this.a.peluang(0.5)
+            ? 'COD ditolak penerima'
+            : this.a.pilih(ALASAN_RTS),
+        ongkir_balik: this.a.antara(8, 15) * 1000,
+        status_kurir: 'RETURN_TO_SENDER',
       });
-      this.jadwalkan(t2 + this.a.menit(48 * 60, 120 * 60), async (w) => {
-        const kondisi = this.a.pilihBobot<'layak_jual' | 'rusak' | 'tidak_lengkap'>([
-          ['layak_jual', 85],
-          ['rusak', 10],
-          ['tidak_lengkap', 5],
-        ]);
-        await this.event(w, {
-          order_nomor: nomor,
-          jenis: 'diterima_kembali',
-          kondisi_barang: kondisi,
-        });
-        if (kondisi === 'layak_jual') {
-          for (const item of o.items)
-            this.stok.set(item.sku, (this.stok.get(item.sku) ?? 0) + item.qty);
-          await this.kirimStok(w);
-        }
-      });
+      const kondisi = this.a.pilihBobot<'layak_jual' | 'rusak' | 'tidak_lengkap'>([
+        ['layak_jual', 85],
+        ['rusak', 10],
+        ['tidak_lengkap', 5],
+      ]);
+      langkah(
+        t2 + this.a.menit(48 * 60, 120 * 60),
+        { order_nomor: nomor, jenis: 'diterima_kembali', kondisi_barang: kondisi },
+        kondisi === 'layak_jual' ? { arah: 'masuk', items } : undefined,
+      );
     } else {
       let t2 = kirim + this.a.menit(24 * 60, 96 * 60);
       if (this.a.peluang(0.2)) {
-        this.jadwalkan(t2, (w) =>
-          this.event(w, {
-            order_nomor: nomor,
-            jenis: 'gagal_antar',
-            alasan: this.a.pilih(ALASAN_GAGAL_ANTAR),
-            percobaan_antar: 1,
-            status_kurir: 'FAILED_DELIVERY',
-          }),
-        );
+        langkah(t2, {
+          order_nomor: nomor,
+          jenis: 'gagal_antar',
+          alasan: this.a.pilih(ALASAN_GAGAL_ANTAR),
+          percobaan_antar: 1,
+          status_kurir: 'FAILED_DELIVERY',
+        });
         t2 += this.a.menit(20 * 60, 30 * 60);
       }
-      this.jadwalkan(t2, async (w) => {
-        await this.event(w, { order_nomor: nomor, jenis: 'terkirim', status_kurir: 'DELIVERED' });
-        this.laporan.terkirim += 1;
-      });
+      langkah(t2, { order_nomor: nomor, jenis: 'terkirim', status_kurir: 'DELIVERED' });
     }
+  }
+
+  private jadwalkanLangkah(l: LangkahEthix): void {
+    const id = (this.idLangkah += 1);
+    this.tertunda.set(id, l);
+    this.jadwalkan(l.waktu, async (w) => {
+      try {
+        await this.jalankanLangkah(w, l);
+        this.tertunda.delete(id);
+      } catch (e) {
+        // API mati: peristiwa diulang, jadi langkahnya tetap tertunda.
+        if (!apiMati(e)) this.tertunda.delete(id);
+        throw e;
+      }
+    });
+  }
+
+  private async jalankanLangkah(w: Date, l: LangkahEthix): Promise<void> {
+    await this.event(w, l.event);
+    const jenis = l.event.jenis;
+    if (jenis === 'dikirim') this.laporan.dikirim += 1;
+    else if (jenis === 'terkirim') this.laporan.terkirim += 1;
+    else if (jenis === 'rts') this.laporan.rts += 1;
+    if (l.stok) {
+      const tanda = l.stok.arah === 'keluar' ? -1 : 1;
+      for (const item of l.stok.items)
+        this.stok.set(item.sku, (this.stok.get(item.sku) ?? 0) + tanda * item.qty);
+      await this.kirimStok(w);
+    }
+  }
+
+  /** Keadaan gudang untuk disimpan; langkah tertunda urut waktu. */
+  keadaanGudang(): KeadaanGudang {
+    return {
+      versi: 1,
+      stok: Object.fromEntries(this.stok),
+      snapshotTerakhir: this.snapshotTerakhir,
+      resi: this.resi,
+      dilihat: [...this.dilihatEthix],
+      tertunda: [...this.tertunda.values()].sort((x, y) => x.waktu - y.waktu),
+    };
+  }
+
+  /**
+   * Lanjutkan gudang dari run sebelumnya. Langkah yang waktunya sudah lewat langsung
+   * dijalankan berurutan; sisanya dipercepat dari sekarang seperti langkah lain.
+   */
+  private pulihkanGudang(g: KeadaanGudang): void {
+    this.stok = new Map(Object.entries(g.stok));
+    for (const k of this.komponen()) {
+      if (!this.stok.has(k.sku)) this.stok.set(k.sku, this.o.stokAwal);
+    }
+    this.snapshotTerakhir = g.snapshotTerakhir;
+    this.resi = g.resi;
+    this.dilihatEthix = new Set(g.dilihat);
+    for (const l of [...g.tertunda].sort((x, y) => x.waktu - y.waktu)) this.jadwalkanLangkah(l);
+    this.log(
+      `gudang Ethix dilanjutkan: ${g.dilihat.length} order, ${g.tertunda.length} langkah tertunda`,
+    );
   }
 
   private async event(

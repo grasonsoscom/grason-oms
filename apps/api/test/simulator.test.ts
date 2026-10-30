@@ -1,5 +1,5 @@
 import type { AddressInfo } from 'node:net';
-import { Simulasi } from '@grason/simulator';
+import { Simulasi, type KeadaanGudang } from '@grason/simulator';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ApiKeysService } from '../src/api-keys/api-keys.service';
 import { AKUN_DEMO, pastikanBolehDemo, resetDemo } from '../src/demo/demo';
@@ -186,4 +186,50 @@ describe('pnpm sim --langsung', () => {
     expect(laporan.lead).toBeGreaterThanOrEqual(1);
     expect(laporan.lead).toBeLessThanOrEqual(15);
   }, 30_000);
+
+  it('melanjutkan order yang masih di gudang atau di jalan dari pengisian mundur', async () => {
+    await resetData(ctx.prisma);
+    const hasil = await resetDemo(ctx.prisma, ctx.app.get(ApiKeysService), PASSWORD);
+    const dasar = { baseUrl, kunci: hasil.kunci, seed: 21, stokAwal: 300 };
+    let gudang: KeadaanGudang | null = null;
+    await new Simulasi({
+      ...dasar,
+      lead: 60,
+      hari: 2,
+      peluang: { closing: 0.8, rts: 0.3 },
+      simpanGudang: (k) => (gudang = k),
+    }).jalankan();
+    expect(gudang).not.toBeNull();
+    const g = gudang as unknown as KeadaanGudang;
+
+    // Order di tengah jalan pasti punya langkah tertunda di gudang.
+    const tengah = await ctx.prisma.order.findMany({
+      where: { status: { in: ['di_gudang', 'dikirim'] } },
+      select: { nomor: true },
+    });
+    expect(tengah.length).toBeGreaterThan(0);
+    const nomorTertunda = new Set(g.tertunda.map((l) => l.event.order_nomor));
+    for (const o of tengah) expect(nomorTertunda.has(o.nomor)).toBe(true);
+    // Disimpan sebagai JSON lalu dibaca lagi, seperti lewat .demo/gudang-ethix.json.
+    const dariFile = JSON.parse(JSON.stringify(g)) as KeadaanGudang;
+
+    const mulai = Date.now();
+    const langsung = new Simulasi({ ...dasar, seed: 22, lead: 0, hari: 1, gudang: dariFile });
+    const laporan = await langsung.jalankanLangsung({
+      leadPerJam: 0.01,
+      percepat: 1_000_000,
+      berhenti: () =>
+        Date.now() - mulai > 20_000 ||
+        langsung.keadaanGudang().tertunda.every((l) => !nomorTertunda.has(l.event.order_nomor)),
+    });
+    expect(laporan.galat).toBe(0);
+
+    const akhir = await ctx.prisma.order.findMany({
+      where: { nomor: { in: tengah.map((o) => o.nomor) } },
+      select: { status: true },
+    });
+    for (const o of akhir) expect(['terkirim', 'rts']).toContain(o.status);
+    // Order yang sudah ditarik tidak ditarik ulang (tidak ada event ganda yang ditolak).
+    expect(langsung.keadaanGudang().dilihat.length).toBeGreaterThanOrEqual(g.dilihat.length);
+  }, 60_000);
 });

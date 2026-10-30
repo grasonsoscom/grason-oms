@@ -1,8 +1,10 @@
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { Acak } from '../src/acak';
-import { muatKonfigurasi } from '../src/konfigurasi';
+import { muatGudang, muatKonfigurasi, simpanGudang } from '../src/konfigurasi';
+import type { KeadaanGudang } from '../src/simulasi';
 import { buatTipeKontrak, SPEK_KONTRAK } from '../src/kontrak/buat';
 
 describe('tipe kontrak', () => {
@@ -42,5 +44,32 @@ describe('konfigurasi', () => {
   it('kunci dari env; akun hanya bila password demo ada', () => {
     const k = muatKonfigurasi({ SIM_CS_AI_KEY: 'gok_a', SIM_ETHIX_KEY: 'gok_b' });
     expect(k.kunci).toEqual({ csAi: 'gok_a', ethix: 'gok_b' });
+  });
+});
+
+describe('gudang Ethix palsu', () => {
+  it('disimpan dan dibaca ulang; versi lain diabaikan', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'gudang-'));
+    const file = path.join(dir, 'gudang-ethix.json');
+    expect(muatGudang(file)).toBeNull();
+    const k: KeadaanGudang = {
+      versi: 1,
+      stok: { 'VVG-01': 12 },
+      snapshotTerakhir: 1,
+      resi: 3,
+      dilihat: ['GRS-20261030-0001'],
+      tertunda: [
+        {
+          waktu: 2,
+          event: { order_nomor: 'GRS-20261030-0001', jenis: 'terkirim' },
+          stok: { arah: 'keluar', items: [{ sku: 'VVG-01', qty: 1 }] },
+        },
+      ],
+    };
+    simpanGudang(k, file);
+    expect(muatGudang(file)).toEqual(k);
+    writeFileSync(file, JSON.stringify({ ...k, versi: 2 }));
+    expect(muatGudang(file)).toBeNull();
+    rmSync(dir, { recursive: true, force: true });
   });
 });

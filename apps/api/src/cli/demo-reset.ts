@@ -6,7 +6,7 @@
  */
 import 'reflect-metadata';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { config as muatEnv } from 'dotenv';
 import { NestFactory } from '@nestjs/core';
@@ -54,6 +54,8 @@ async function main(): Promise<void> {
       2,
     )}\n`,
   );
+  // Gudang Ethix palsu milik data lama; simulator membuat yang baru.
+  rmSync(path.join(AKAR, '.demo', 'gudang-ethix.json'), { force: true });
 
   console.log('Data dummy dikosongkan. Akun demo (password = DEMO_PASSWORD di .env):');
   for (const a of hasil.akun) console.log(`  ${a.role.padEnd(12)} ${a.email}`);

@@ -29,6 +29,13 @@ API key dibaca dari `SIM_CS_AI_KEY`/`SIM_ETHIX_KEY` di `.env`, atau dari
 `.demo/kunci-simulator.json` yang ditulis `pnpm demo:reset`. Password akun demo dari
 `DEMO_PASSWORD`.
 
+Gudang Ethix palsu (stok, order yang sudah ditarik, langkah pengiriman yang belum terjadi)
+disimpan di `.demo/gudang-ethix.json`, seperti Ethix sungguhan yang punya datanya sendiri.
+`pnpm sim` menulisnya; `pnpm sim --langsung` membacanya dan melanjutkan order yang masih
+di gudang atau di jalan, lalu menyimpannya tiap 10 detik. `pnpm demo:reset` menghapusnya.
+Menjalankan `pnpm sim` (mundur) lagi tanpa reset membuat gudang baru: order dari run
+sebelumnya yang belum sampai tidak dilanjutkan.
+
 Tipe kontrak di `src/kontrak/*.v1.ts` dibuat dari OpenAPI. Setelah kontrak berubah:
 
 ```bash

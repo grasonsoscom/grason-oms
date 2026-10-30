@@ -1,12 +1,31 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { AkunDemo } from './simulasi';
+import type { AkunDemo, KeadaanGudang } from './simulasi';
 
 /** Root repo; .env dan .demo/ ada di sini. */
 export const AKAR_REPO = path.resolve(__dirname, '../../..');
 
 /** Ditulis `pnpm demo:reset`. Berisi API key simulator, jadi di-gitignore. */
 export const FILE_KUNCI = path.join(AKAR_REPO, '.demo', 'kunci-simulator.json');
+
+/**
+ * Keadaan gudang Ethix palsu (stok, order yang sudah ditarik, langkah pengiriman tertunda).
+ * Ditulis `pnpm sim`, dibaca `pnpm sim --langsung`, dihapus `pnpm demo:reset`.
+ */
+export const FILE_GUDANG = path.join(AKAR_REPO, '.demo', 'gudang-ethix.json');
+
+export function muatGudang(file = FILE_GUDANG): KeadaanGudang | null {
+  if (!existsSync(file)) return null;
+  const k = JSON.parse(readFileSync(file, 'utf8')) as KeadaanGudang;
+  return k.versi === 1 ? k : null;
+}
+
+export function simpanGudang(k: KeadaanGudang, file = FILE_GUDANG): void {
+  mkdirSync(path.dirname(file), { recursive: true });
+  // Tulis ke file sementara lalu ganti, supaya file tidak setengah jadi bila proses dihentikan.
+  writeFileSync(`${file}.tmp`, JSON.stringify(k));
+  renameSync(`${file}.tmp`, file);
+}
 
 export interface FileKunci {
   csAi: string;

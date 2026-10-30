@@ -79,6 +79,12 @@ memegang uang ([0003](0003-oms-tanpa-uang.md)).
   ulang 8 akun demo (6 role, 3 di antaranya CS), menulis API key simulator ke
   `.demo/kunci-simulator.json` (gitignored), lalu menjalankan simulator bila API hidup.
   User dan API key lain tidak disentuh.
+- Gudang Ethix palsu menyimpan keadaannya sendiri (stok, order yang sudah ditarik, langkah
+  pengiriman tertunda) di `.demo/gudang-ethix.json`, karena kontrak polling Ethix hanya
+  memberi order `siap_kirim`. Mode langsung membacanya untuk melanjutkan order yang
+  ditinggal pengisian mundur di di_gudang/dikirim. Kontrak tidak diubah. Langkah CS palsu
+  (verifikasi, pembagian handover) yang tertunda di akhir pengisian mundur tidak disimpan;
+  order itu tetap baru dan muncul di "Menunggu verifikasi".
 - Order baru yang belum diverifikasi lebih dari 24 jam hanya ditandai di daftar; tidak ada
   pembatalan otomatis di Fase 1.
 

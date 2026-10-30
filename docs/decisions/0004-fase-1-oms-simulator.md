@@ -82,6 +82,20 @@ memegang uang ([0003](0003-oms-tanpa-uang.md)).
 - Order baru yang belum diverifikasi lebih dari 24 jam hanya ditandai di daftar; tidak ada
   pembatalan otomatis di Fase 1.
 
+### Ringkasan (tambahan 2026-10-30)
+
+- Periode Hari ini, Kemarin, 7 hari, Bulan ini (WIB). Pembanding = periode sebelumnya
+  dengan panjang yang sama: hari ini sampai jam sekarang vs kemarin sampai jam yang sama;
+  bulan ini vs bulan lalu sampai tanggal dan jam yang sama, tidak melewati akhir bulan.
+- Angka periode (lead masuk, order dibuat, order terkirim, GMV terkirim) memakai
+  perbandingan. Kartu tindakan (lead belum direspon, antrian handover, verifikasi, SLA resi)
+  dan posisi order aktif adalah keadaan saat ini, jadi tidak dibandingkan dan tidak
+  bergantung periode.
+- SLA resi dipecah kuning (lewat 18 jam, belum 24 jam) dan merah (lewat 24 jam); daftar
+  order memakai filter yang sama (`sla=kuning|merah|terlambat`).
+- Filter produk: lead menurut produk yang ditanyakan; order yang memuat produk itu,
+  langsung atau di dalam paket; stok produk itu.
+
 ## Belum dikerjakan (fase berikutnya)
 
 - Webhook nyata ke SaaS CS AI dan push order ke Ethix (Fase 3).

@@ -11,6 +11,7 @@ import {
   hariCover,
   nomorOrder,
   pecahCheckout,
+  rentangPeriode,
   statusAkhir,
   statusCover,
   tandaSlaResi,
@@ -240,5 +241,43 @@ describe('waktu WIB', () => {
     expect(tandaSlaResi(t, jam(18))).toBe('aman');
     expect(tandaSlaResi(t, jam(19))).toBe('kuning');
     expect(tandaSlaResi(t, jam(25))).toBe('merah');
+  });
+});
+
+describe('rentangPeriode', () => {
+  // 30 Okt 2026, 14.00 WIB
+  const sekarang = new Date('2026-10-30T07:00:00Z');
+  const iso = (r: { dari: Date; sampai: Date }) => [r.dari.toISOString(), r.sampai.toISOString()];
+
+  it('hari ini dibandingkan kemarin sampai jam yang sama', () => {
+    const r = rentangPeriode('hari_ini', sekarang);
+    expect(iso(r.ini)).toEqual(['2026-10-29T17:00:00.000Z', '2026-10-30T07:00:00.001Z']);
+    expect(iso(r.sebelumnya)).toEqual(['2026-10-28T17:00:00.000Z', '2026-10-29T07:00:00.001Z']);
+  });
+
+  it('kemarin satu hari penuh WIB', () => {
+    const r = rentangPeriode('kemarin', sekarang);
+    expect(iso(r.ini)).toEqual(['2026-10-28T17:00:00.000Z', '2026-10-29T17:00:00.000Z']);
+    expect(iso(r.sebelumnya)).toEqual(['2026-10-27T17:00:00.000Z', '2026-10-28T17:00:00.000Z']);
+  });
+
+  it('7 hari termasuk hari ini, dibanding 7 hari sebelumnya', () => {
+    const r = rentangPeriode('7_hari', sekarang);
+    expect(iso(r.ini)[0]).toBe('2026-10-23T17:00:00.000Z');
+    expect(iso(r.sebelumnya)).toEqual(['2026-10-16T17:00:00.000Z', '2026-10-23T07:00:00.001Z']);
+  });
+
+  it('bulan ini dibanding bulan lalu di tanggal yang sama, tidak melewati akhir bulan', () => {
+    const r = rentangPeriode('bulan_ini', sekarang);
+    expect(iso(r.ini)[0]).toBe('2026-09-30T17:00:00.000Z');
+    expect(iso(r.sebelumnya)[0]).toBe('2026-08-31T17:00:00.000Z');
+    // 30 Okt → 30 Sep 14.00 WIB
+    expect(iso(r.sebelumnya)[1]).toBe('2026-09-30T07:00:00.001Z');
+    // 31 Mar → bulan lalu (Februari) berhenti di akhir Februari.
+    const maret = rentangPeriode('bulan_ini', new Date('2026-03-31T07:00:00Z'));
+    expect(maret.sebelumnya.sampai.toISOString()).toBe('2026-02-28T17:00:00.000Z');
+    // Januari dibanding Desember tahun lalu.
+    const jan = rentangPeriode('bulan_ini', new Date('2026-01-10T07:00:00Z'));
+    expect(jan.sebelumnya.dari.toISOString()).toBe('2025-11-30T17:00:00.000Z');
   });
 });

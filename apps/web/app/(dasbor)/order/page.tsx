@@ -152,12 +152,17 @@ function DaftarOrder() {
         </div>
         <div className="mt-3 flex flex-wrap gap-4 text-sm">
           <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={f.sla === 'terlambat'}
-              onChange={(e) => atur('sla', e.target.checked ? 'terlambat' : '')}
-            />
-            Resi lewat 18 jam
+            SLA resi
+            <select
+              className={`${kelasInput} w-auto py-1`}
+              value={f.sla}
+              onChange={(e) => atur('sla', e.target.value)}
+            >
+              <option value="">Semua</option>
+              <option value="terlambat">Lewat 18 jam</option>
+              <option value="kuning">18–24 jam (kuning)</option>
+              <option value="merah">Lewat 24 jam (merah)</option>
+            </select>
           </label>
           <label className="flex items-center gap-2">
             <input

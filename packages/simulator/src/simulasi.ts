@@ -229,11 +229,10 @@ export class Simulasi {
       await (this.akunAda() && this.a.peluang(this.p.manual)
         ? this.leadManual(t, i)
         : this.leadCsAi(t, i));
-      // Jeda acak eksponensial dengan rata-rata 1/leadPerJam jam.
-      this.jadwalkan(
-        t.getTime() + (-Math.log(1 - this.a.angka()) * JAM) / opsi.leadPerJam,
-        leadBerikutnya,
-      );
+      // Jeda acak eksponensial dengan rata-rata 1/leadPerJam jam nyata. jadwalkan()
+      // mempercepat setiap jeda, jadi jeda lead dikali `percepat` agar lajunya tetap nyata.
+      const jeda = (-Math.log(1 - this.a.angka()) * JAM) / opsi.leadPerJam;
+      this.jadwalkan(t.getTime() + jeda * opsi.percepat, leadBerikutnya);
     };
     this.jadwalkan(mulai, leadBerikutnya);
 
@@ -252,6 +251,14 @@ export class Simulasi {
       try {
         await ev.jalan(new Date(ev.waktu));
       } catch (e) {
+        if (this.langsung && e instanceof TypeError && e.message === 'fetch failed') {
+          // API sedang restart (mis. pnpm dev mode watch): ulangi peristiwa sebentar lagi.
+          // Aman diulang karena external_id dan event_id peristiwa yang sama tidak berubah.
+          this.log('API tidak bisa dihubungi, dicoba lagi dalam 5 detik');
+          this.antrean.unshift({ ...ev, waktu: Date.now() + 5000 });
+          this.antrean.sort((x, y) => x.waktu - y.waktu || x.urut - y.urut);
+          return;
+        }
         if (!(e instanceof GalatHttp)) throw e;
         this.laporan.galat += 1;
         const detail = (e.body as { error?: { detail?: unknown } } | null)?.error?.detail;
@@ -338,17 +345,22 @@ export class Simulasi {
 
   /** Lead lebih banyak di jam 08–22 WIB. */
   private waktuLeadAcak(mulai: number): number {
-    const hari = this.a.antara(0, this.o.hari - 1);
-    const jamWib = this.a.pilihBobot<number>(
-      Array.from(
-        { length: 24 },
-        (_, j) => [j, j >= 8 && j <= 22 ? (j >= 19 ? 5 : 3) : 0.4] as const,
-      ),
+    const bobotJam = Array.from(
+      { length: 24 },
+      (_, j) => [j, j >= 8 && j <= 22 ? (j >= 19 ? 5 : 3) : 0.4] as const,
     );
     // Awal hari WIB pertama: mulai dibulatkan ke 00.00 WIB.
     const awalWib = Math.floor((mulai + 7 * JAM) / HARI) * HARI - 7 * JAM;
-    const t = awalWib + (hari + 1) * HARI + jamWib * JAM + this.a.antara(0, 59) * MENIT;
-    return Math.min(Math.max(t, mulai), this.sekarang - MENIT);
+    const batas = this.sekarang - MENIT;
+    // Jam yang jatuh setelah sekarang (sisa hari ini) diundi ulang, bukan dipaksa ke
+    // "sekarang", supaya lead tidak menumpuk di menit terakhir.
+    for (let coba = 0; coba < 50; coba += 1) {
+      const hari = this.a.antara(0, this.o.hari - 1);
+      const jamWib = this.a.pilihBobot<number>(bobotJam);
+      const t = awalWib + (hari + 1) * HARI + jamWib * JAM + this.a.antara(0, 59) * MENIT;
+      if (t >= mulai && t <= batas) return t;
+    }
+    return mulai + Math.floor(this.a.angka() * (batas - mulai));
   }
 
   // ─────────────────────────── CS AI palsu ───────────────────────────

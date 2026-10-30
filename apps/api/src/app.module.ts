@@ -11,6 +11,7 @@ import { FilterGalat } from './common/galat';
 import { ConfigModule } from './config.module';
 import { AppLeadsController } from './app/app-leads.controller';
 import { AppOrdersController } from './app/app-orders.controller';
+import { AppRingkasanController } from './app/app-ringkasan.controller';
 import { AppUmumController } from './app/app-umum.controller';
 import { CustomersController } from './customers/customers.controller';
 import { EthixService } from './ethix/ethix.service';
@@ -48,6 +49,7 @@ class HealthController {
     AppLeadsController,
     AppOrdersController,
     AppUmumController,
+    AppRingkasanController,
   ],
   providers: [
     SesiService,

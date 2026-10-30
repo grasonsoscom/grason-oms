@@ -63,6 +63,7 @@ export class AppLeadsController {
     if (f.cs) and.push({ csUserId: f.cs });
     if (f.handover === 'ya') and.push({ handover: true });
     if (f.handover === 'antrian') and.push({ handover: true, csUserId: null });
+    if (f.produk) and.push({ produkDitanyaId: f.produk });
     const rentang = rentangWib(f.dari, f.sampai);
     if (rentang) and.push({ masukAt: rentang });
     if (f.cari) {

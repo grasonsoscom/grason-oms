@@ -85,3 +85,26 @@ export function queryString(f: Record<string, string | number | undefined | null
   const s = p.toString();
   return s ? `?${s}` : '';
 }
+
+export type Arah = 'naik' | 'turun' | 'sama' | 'baru' | 'kosong';
+
+/** Perubahan terhadap periode sebelumnya, mis. "▲ 25%". */
+export function perbandingan(nilai: number, sebelumnya: number): { arah: Arah; teks: string } {
+  if (sebelumnya === 0) {
+    return nilai === 0 ? { arah: 'kosong', teks: '–' } : { arah: 'baru', teks: 'baru' };
+  }
+  const persen = Math.round(((nilai - sebelumnya) / sebelumnya) * 100);
+  if (persen === 0) return { arah: 'sama', teks: '= 0%' };
+  return persen > 0
+    ? { arah: 'naik', teks: `▲ ${persen}%` }
+    : { arah: 'turun', teks: `▼ ${Math.abs(persen)}%` };
+}
+
+/** 200 → "3 jam 20 mnt"; 3000 → "2 hari 2 jam". */
+export function umur(menit: number): string {
+  if (menit < 60) return `${menit} mnt`;
+  const jam = Math.floor(menit / 60);
+  if (jam < 24) return menit % 60 ? `${jam} jam ${menit % 60} mnt` : `${jam} jam`;
+  const hari = Math.floor(jam / 24);
+  return jam % 24 ? `${hari} hari ${jam % 24} jam` : `${hari} hari`;
+}

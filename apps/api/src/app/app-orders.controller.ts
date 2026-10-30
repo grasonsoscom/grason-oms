@@ -16,7 +16,6 @@ import {
   ALAMAT_DISAMARKAN,
   BATAS_UMUR_BARU_JAM,
   METODE_BAYAR,
-  SLA_RESI_JAM,
   STATUS_BOLEH_BATAL,
   STATUS_BOLEH_KOREKSI_ALAMAT,
   tandaSlaResi,
@@ -28,7 +27,14 @@ import { bolehLihatPii, type Pelaku } from '../common/pelaku';
 import { pastikanLeadMilik } from '../leads/leads.service';
 import { OrdersService, pastikanMilik } from '../orders/orders.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { rentangWib, samarkan, skemaFilterOrder, whereOrderMilik } from './filter';
+import {
+  rentangWib,
+  samarkan,
+  skemaFilterOrder,
+  whereOrderMilik,
+  whereOrderProduk,
+  whereSlaResi,
+} from './filter';
 
 const teks = (maks: number) => z.string().trim().min(1).max(maks);
 const opsional = z
@@ -106,26 +112,10 @@ export class AppOrdersController {
     if (f.metode) and.push({ metodeBayar: f.metode });
     if (f.cs === 'cs_ai') and.push({ agen: 'cs_ai' });
     else if (f.cs) and.push({ csUserId: f.cs });
-    if (f.produk) {
-      and.push({
-        items: {
-          some: {
-            OR: [
-              { productId: f.produk },
-              { product: { bundleItems: { some: { componentProductId: f.produk } } } },
-            ],
-          },
-        },
-      });
-    }
+    if (f.produk) and.push(whereOrderProduk(f.produk));
     const rentang = rentangWib(f.dari, f.sampai);
     if (rentang) and.push({ createdAt: rentang });
-    if (f.sla === 'terlambat') {
-      and.push({
-        status: { in: ['terverifikasi', 'di_gudang'] },
-        terverifikasiAt: { lt: new Date(sekarang.getTime() - SLA_RESI_JAM.kuning * 3_600_000) },
-      });
-    }
+    if (f.sla) and.push(whereSlaResi(f.sla, sekarang));
     if (f.verifikasi_manusia) and.push({ status: 'baru', perluVerifikasiManusia: true });
     if (f.cari) {
       and.push({

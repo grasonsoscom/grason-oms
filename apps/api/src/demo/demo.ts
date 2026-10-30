@@ -8,15 +8,16 @@ import type { ApiKeysService } from '../api-keys/api-keys.service';
 export const DOMAIN_DEMO = 'demo.grason.local';
 export const AWALAN_KUNCI_SIM = 'Simulator ';
 
+/** Nama orang fiktif, bukan nama role, supaya header "nama · role" tidak dobel. */
 export const AKUN_DEMO: readonly { email: string; nama: string; role: Role }[] = [
-  { email: `orkestrator@${DOMAIN_DEMO}`, nama: 'Demo Orkestrator', role: 'orkestrator' },
-  { email: `finance@${DOMAIN_DEMO}`, nama: 'Demo Finance', role: 'finance' },
-  { email: `sales-ops@${DOMAIN_DEMO}`, nama: 'Demo Sales & Ops', role: 'sales_ops' },
-  { email: `cs-leader@${DOMAIN_DEMO}`, nama: 'Demo CS Leader', role: 'cs_leader' },
-  { email: `cs1@${DOMAIN_DEMO}`, nama: 'Ani (CS)', role: 'cs' },
-  { email: `cs2@${DOMAIN_DEMO}`, nama: 'Bayu (CS)', role: 'cs' },
-  { email: `cs3@${DOMAIN_DEMO}`, nama: 'Citra (CS)', role: 'cs' },
-  { email: `pic-iklan@${DOMAIN_DEMO}`, nama: 'Demo PIC Iklan', role: 'pic_iklan' },
+  { email: `orkestrator@${DOMAIN_DEMO}`, nama: 'Rani Wijaya', role: 'orkestrator' },
+  { email: `finance@${DOMAIN_DEMO}`, nama: 'Dodi Santoso', role: 'finance' },
+  { email: `sales-ops@${DOMAIN_DEMO}`, nama: 'Sari Utami', role: 'sales_ops' },
+  { email: `cs-leader@${DOMAIN_DEMO}`, nama: 'Maya Lestari', role: 'cs_leader' },
+  { email: `cs1@${DOMAIN_DEMO}`, nama: 'Ani Rahmawati', role: 'cs' },
+  { email: `cs2@${DOMAIN_DEMO}`, nama: 'Bayu Saputra', role: 'cs' },
+  { email: `cs3@${DOMAIN_DEMO}`, nama: 'Citra Permata', role: 'cs' },
+  { email: `pic-iklan@${DOMAIN_DEMO}`, nama: 'Fajar Nugroho', role: 'pic_iklan' },
 ];
 
 /** Tabel data transaksi yang dikosongkan. Produk, role, dan user non-demo tetap. */

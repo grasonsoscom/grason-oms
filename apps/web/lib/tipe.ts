@@ -4,6 +4,7 @@ import type {
   LeadStatus,
   MetodeBayar,
   OrderStatus,
+  Periode,
   StatusCover,
   TandaSla,
   TipeProduk,
@@ -181,17 +182,35 @@ export interface Produk {
   hargaJual: number;
 }
 
+export interface Banding {
+  nilai: number;
+  sebelumnya: number;
+}
+
+export type StatusAktif = 'baru' | 'terverifikasi' | 'di_gudang' | 'dikirim';
+
 export interface Ringkasan {
   waktu: string;
-  lead: { hariIni: number; antrianHandover: number | null; belumDirespon: number } | null;
-  order: {
-    hariIniPerStatus: Record<OrderStatus, number>;
-    terkirimHariIni: number;
-    gmvTerkirimHariIni: number;
-    slaTerlambat: number;
-    perluVerifikasiManusia: number;
-    menungguVerifikasi: number;
-  } | null;
+  periode: {
+    kode: Periode;
+    label: string;
+    labelSebelumnya: string;
+    dari: string;
+    sampai: string;
+    leadMasuk: Banding | null;
+    orderDibuat: Banding | null;
+    orderTerkirim: Banding | null;
+    gmvTerkirim: Banding | null;
+  };
+  tindakan: {
+    leadBelumDirespon: { jumlah: number; umurTerlamaMenit: number | null } | null;
+    antrianHandover: number | null;
+    menungguVerifikasi: number | null;
+    perluVerifikasiManusia: number | null;
+    resiKuning: number | null;
+    resiMerah: number | null;
+  };
+  posisi: Record<StatusAktif, number> | null;
   stok:
     | {
         sku: string;

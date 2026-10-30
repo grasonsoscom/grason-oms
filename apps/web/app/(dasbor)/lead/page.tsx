@@ -7,9 +7,19 @@ import { LEAD_STATUS } from '@grason/shared';
 import { useSesi } from '@/components/sesi';
 import { Halaman, Isian, Kartu, Lencana, PesanGalat, kelasInput, useData } from '@/components/ui';
 import { LABEL_AGEN, WARNA_STATUS_LEAD, labelStatusLead, queryString, waktu } from '@/lib/format';
-import type { BarisLead, Daftar, Orang } from '@/lib/tipe';
+import type { BarisLead, Daftar, Orang, Produk } from '@/lib/tipe';
 
-const FILTER = ['status', 'agen', 'cs', 'handover', 'dari', 'sampai', 'cari', 'halaman'] as const;
+const FILTER = [
+  'status',
+  'agen',
+  'cs',
+  'handover',
+  'produk',
+  'dari',
+  'sampai',
+  'cari',
+  'halaman',
+] as const;
 
 function DaftarLead() {
   const user = useSesi();
@@ -23,6 +33,7 @@ function DaftarLead() {
   const { data, galat, memuat } = useData<Daftar<BarisLead>>(`/app/leads${queryString(f)}`);
   const lihatSemua = user.boleh('lead.lihat_semua');
   const { data: cs } = useData<{ data: Orang[] }>(lihatSemua ? '/app/cs' : null);
+  const { data: produk } = useData<Produk[]>('/products');
 
   const atur = (k: string, v: string) =>
     router.replace(`${path}${queryString({ ...f, [k]: v, halaman: k === 'halaman' ? v : '' })}`);
@@ -42,7 +53,7 @@ function DaftarLead() {
       </div>
 
       <Kartu>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
           <Isian label="Status">
             <select
               className={kelasInput}
@@ -55,6 +66,22 @@ function DaftarLead() {
                   {labelStatusLead(s)}
                 </option>
               ))}
+            </select>
+          </Isian>
+          <Isian label="Produk ditanya">
+            <select
+              className={kelasInput}
+              value={f.produk}
+              onChange={(e) => atur('produk', e.target.value)}
+            >
+              <option value="">Semua</option>
+              {produk
+                ?.filter((p) => p.tipe === 'satuan')
+                .map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nama}
+                  </option>
+                ))}
             </select>
           </Isian>
           <Isian label="Agen">

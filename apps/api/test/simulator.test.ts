@@ -107,6 +107,11 @@ describe('pnpm sim', () => {
     const tertua = Math.min(...leads.map((l) => l.createdAt.getTime()));
     expect(sekarang.getTime() - tertua).toBeGreaterThan(4 * 86_400_000);
     for (const l of leads) expect(l.createdAt.getTime()).toBe(l.masukAt.getTime());
+    // Lead tidak menumpuk di menit terakhir (jam setelah sekarang diundi ulang).
+    const menitTerakhir = leads.filter(
+      (l) => sekarang.getTime() - l.masukAt.getTime() < 2 * 60_000,
+    );
+    expect(menitTerakhir.length).toBeLessThanOrEqual(2);
 
     const perStatus = await ctx.prisma.order.groupBy({ by: ['status'], _count: true });
     const n = (s: string) => perStatus.find((p) => p.status === s)?._count ?? 0;
@@ -146,4 +151,39 @@ describe('pnpm sim', () => {
     });
     expect(nomorUlang).toEqual(nomor);
   }, 180_000);
+});
+
+describe('akun demo', () => {
+  it('memakai nama orang, bukan nama role', () => {
+    const labelRole = ['orkestrator', 'finance', 'sales', 'cs leader', 'pic iklan', '(cs)', 'demo'];
+    for (const a of AKUN_DEMO) {
+      for (const l of labelRole) expect(a.nama.toLowerCase()).not.toContain(l);
+    }
+    expect(new Set(AKUN_DEMO.map((a) => a.nama)).size).toBe(AKUN_DEMO.length);
+  });
+});
+
+describe('pnpm sim --langsung', () => {
+  it('laju lead mengikuti jam nyata; hanya langkah proses yang dipercepat', async () => {
+    await resetData(ctx.prisma);
+    const hasil = await resetDemo(ctx.prisma, ctx.app.get(ApiKeysService), PASSWORD);
+    const mulai = Date.now();
+    // 3600 lead/jam = rata-rata 1 lead per detik, dipercepat 60×.
+    const laporan = await new Simulasi({
+      baseUrl,
+      kunci: hasil.kunci,
+      lead: 0,
+      hari: 1,
+      seed: 11,
+      stokAwal: 100,
+    }).jalankanLangsung({
+      leadPerJam: 3600,
+      percepat: 60,
+      berhenti: () => Date.now() - mulai > 3000,
+    });
+    expect(laporan.galat).toBe(0);
+    // Bila jeda lead ikut dipercepat, hasilnya ~180 lead dalam 3 detik.
+    expect(laporan.lead).toBeGreaterThanOrEqual(1);
+    expect(laporan.lead).toBeLessThanOrEqual(15);
+  }, 30_000);
 });

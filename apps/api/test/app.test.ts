@@ -209,8 +209,8 @@ describe('CS manusia', () => {
       .set('Cookie', leader);
     expect(antrian.body.data.map((l: { id: string }) => l.id)).toEqual([leadId]);
     const ring = await ctx.http().get('/api/v1/app/ringkasan').set('Cookie', leader).expect(200);
-    expect(ring.body.lead.antrianHandover).toBe(1);
-    expect(ring.body.order.perluVerifikasiManusia).toBe(1);
+    expect(ring.body.tindakan.antrianHandover).toBe(1);
+    expect(ring.body.tindakan.perluVerifikasiManusia).toBe(1);
 
     const cs = await buatUser(ctx.prisma, 'cs', 'cs-h@uji.local');
     const cookieCs = await login(ctx, 'cs-h@uji.local');

@@ -15,6 +15,8 @@ const JEDA_UPDATE_DIPAKAI_MS = 5 * 60 * 1000;
 export interface InputBuatApiKey {
   nama: string;
   sistem: Sistem;
+  /** Kunci simulator (hanya dari pnpm demo:reset); boleh mengirim X-Sim-Waktu di mode demo. */
+  simulator?: boolean;
   /** Default: semua scope sistem tersebut. */
   scopes?: Scope[];
 }
@@ -42,6 +44,7 @@ export class ApiKeysService {
           sistem: input.sistem,
           prefix,
           keyHash: sha256(kunci),
+          simulator: input.simulator ?? false,
           scopes,
           dibuatOlehId: pelaku?.tipe === 'user' ? pelaku.userId : null,
         },
@@ -102,6 +105,7 @@ export class ApiKeysService {
       apiKeyId: apiKey.id,
       nama: apiKey.nama,
       sistem: apiKey.sistem,
+      simulator: apiKey.simulator,
       scopes: apiKey.scopes.filter((s): s is Scope => (SCOPE as readonly string[]).includes(s)),
     };
   }
@@ -110,6 +114,7 @@ export class ApiKeysService {
     id: string;
     nama: string;
     sistem: Sistem;
+    simulator: boolean;
     prefix: string;
     scopes: string[];
     dipakaiAt: Date | null;
@@ -120,6 +125,7 @@ export class ApiKeysService {
       id: k.id,
       nama: k.nama,
       sistem: k.sistem,
+      simulator: k.simulator,
       prefix: k.prefix,
       scopes: k.scopes,
       dipakaiAt: k.dipakaiAt,

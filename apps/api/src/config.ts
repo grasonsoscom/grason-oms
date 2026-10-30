@@ -7,6 +7,7 @@ const skemaConfig = z.object({
   WEB_ORIGIN: z.string().default('http://localhost:3000'),
   SESSION_TTL_HOURS: z.coerce.number().positive().default(12),
   DEMO_MODE: z.enum(['true', 'false']).default('false'),
+  RATE_LIMIT_API_KEY_PER_MENIT: z.coerce.number().int().min(0).default(60),
 });
 
 export interface ConfigApi {
@@ -17,6 +18,8 @@ export interface ConfigApi {
   sesiTtlMs: number;
   /** Mode demo: header X-Sim-Waktu diterima dan pnpm demo:reset boleh jalan. Tidak pernah di produksi. */
   demoMode: boolean;
+  /** Batas permintaan per API key per menit; 0 = tanpa batas. Kunci simulator di mode demo tidak dibatasi. */
+  batasPerMenitApiKey: number;
 }
 
 export const CONFIG = Symbol('CONFIG');
@@ -38,5 +41,6 @@ export function muatConfig(env: NodeJS.ProcessEnv): ConfigApi {
     webOrigin: c.WEB_ORIGIN,
     sesiTtlMs: c.SESSION_TTL_HOURS * 60 * 60 * 1000,
     demoMode: c.DEMO_MODE === 'true',
+    batasPerMenitApiKey: c.RATE_LIMIT_API_KEY_PER_MENIT,
   };
 }

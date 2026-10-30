@@ -38,6 +38,14 @@ Buat API key untuk sistem luar (kunci hanya tampil sekali):
 pnpm apikey:create --sistem cs_ai --nama "Simulator CS AI"
 ```
 
+API key hanya diterima di endpoint kontrak sesuai scope-nya, dibatasi 60 permintaan per
+menit (`RATE_LIMIT_API_KEY_PER_MENIT`), dan tidak bisa mengatur waktu lewat X-Sim-Waktu
+([0005](docs/decisions/0005-api-key-untuk-tunnel.md)).
+
+Bila API dibuka lewat tunnel untuk uji sambung CS AI, teruskan hanya path kontrak CS AI:
+`/api/v1/leads*`, `/api/v1/orders*`, `/api/v1/stock`, `/api/v1/prices`,
+`/api/v1/sistem/saya`, dan `/api/v1/health`. Login dan dashboard tidak perlu dibuka.
+
 ## Struktur
 
 | Folder                  | Isi                                                              |

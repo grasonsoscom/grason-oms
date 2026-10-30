@@ -16,6 +16,8 @@ export interface PelakuApiKey {
   apiKeyId: string;
   nama: string;
   sistem: Sistem;
+  /** Kunci simulator dari pnpm demo:reset. */
+  simulator: boolean;
   scopes: readonly Scope[];
 }
 

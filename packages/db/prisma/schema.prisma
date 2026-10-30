@@ -503,6 +503,8 @@ model ApiKey {
   sistem       Sistem
   prefix       String    @unique
   keyHash      String    @map("key_hash")
+  /// Kunci simulator dari pnpm demo:reset; hanya kunci ini yang boleh mengirim X-Sim-Waktu.
+  simulator    Boolean   @default(false)
   scopes       String[]
   dibuatOlehId String?   @map("dibuat_oleh_id") @db.Uuid
   dipakaiAt    DateTime? @map("dipakai_at") @db.Timestamptz(3)

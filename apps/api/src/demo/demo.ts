@@ -70,7 +70,7 @@ export async function resetDemo(
     select: { id: true },
   });
   const kunciSim = await prisma.apiKey.findMany({
-    where: { nama: { startsWith: AWALAN_KUNCI_SIM } },
+    where: { OR: [{ simulator: true }, { nama: { startsWith: AWALAN_KUNCI_SIM } }] },
     select: { id: true },
   });
   const idUser = userDemo.map((u) => u.id);
@@ -97,8 +97,16 @@ export async function resetDemo(
     });
   }
 
-  const csAi = await apiKeys.buat({ nama: `${AWALAN_KUNCI_SIM}CS AI`, sistem: 'cs_ai' });
-  const ethix = await apiKeys.buat({ nama: `${AWALAN_KUNCI_SIM}Ethix`, sistem: 'ethix' });
+  const csAi = await apiKeys.buat({
+    nama: `${AWALAN_KUNCI_SIM}CS AI`,
+    sistem: 'cs_ai',
+    simulator: true,
+  });
+  const ethix = await apiKeys.buat({
+    nama: `${AWALAN_KUNCI_SIM}Ethix`,
+    sistem: 'ethix',
+    simulator: true,
+  });
   return {
     akun: AKUN_DEMO.map((a) => ({ email: a.email, role: a.role })),
     kunci: { csAi: csAi.kunci, ethix: ethix.kunci },

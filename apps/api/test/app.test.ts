@@ -312,7 +312,7 @@ describe('Sales & Ops', () => {
 });
 
 describe('X-Sim-Waktu', () => {
-  it('hanya berlaku di mode demo dan tidak boleh di masa depan', () => {
+  it('hanya berlaku bila pelaku boleh dan tidak boleh di masa depan', () => {
     const sekarang = new Date('2026-10-29T10:00:00Z');
     const lalu = '2026-10-25T03:00:00Z';
     expect(waktuPermintaan(lalu, false, sekarang)).toBe(sekarang);

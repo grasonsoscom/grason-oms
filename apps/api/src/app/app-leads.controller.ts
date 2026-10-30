@@ -201,6 +201,7 @@ export class AppLeadsController {
       masukAt: l.masukAt,
       responPertamaAt: l.responPertamaAt,
       kanal: l.kanal,
+      segmen: l.segmen,
       campaignId: l.campaignId,
       adsetId: l.adsetId,
       adId: l.adId,

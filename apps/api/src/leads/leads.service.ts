@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Lead, LeadStatus, Prisma } from '@grason/db';
+import type { Lead, LeadStatus, Prisma, Segmen } from '@grason/db';
 import { normalisasiNoWa } from '@grason/shared';
 import { galat } from '../common/galat';
 import type { Pelaku } from '../common/pelaku';
@@ -21,6 +21,8 @@ export interface InputLead {
   adId?: string | null;
   skuDitanya?: string | null;
   masukAt: Date;
+  /** Segmen menurut CS AI (cs-ai.v2). */
+  segmen?: Segmen | null;
   catatan?: string | null;
 }
 
@@ -116,6 +118,7 @@ export class LeadsService {
           agen: asal.agen,
           csUserId: asal.csUserId,
           masukAt: input.masukAt.getTime() <= waktu.getTime() ? input.masukAt : waktu,
+          segmen: input.segmen ?? null,
           catatan: input.catatan ?? null,
           createdAt: waktu,
         },

@@ -66,13 +66,14 @@ export class AppRingkasanController {
       ]);
       return { nilai, sebelumnya };
     };
-    const gmvTerkirim = async (r: Rentang) =>
-      (
-        await this.prisma.client.order.aggregate({
-          where: { AND: [whereOrder, { status: 'terkirim', terkirimAt: antara(r) }] },
-          _sum: { total: true },
-        })
-      )._sum.total ?? 0;
+    // GMV = nilai barang setelah diskon, tanpa ongkir dan biaya COD (keputusan 0006).
+    const gmvTerkirim = async (r: Rentang) => {
+      const { _sum } = await this.prisma.client.order.aggregate({
+        where: { AND: [whereOrder, { status: 'terkirim', terkirimAt: antara(r) }] },
+        _sum: { subtotal: true, diskon: true },
+      });
+      return (_sum.subtotal ?? 0) - (_sum.diskon ?? 0);
+    };
 
     const periode = {
       leadMasuk: bolehLead ? await banding((r) => lead({ masukAt: antara(r) })) : null,

@@ -21,9 +21,9 @@ sambung dengan SaaS CS AI. Sebelumnya:
     nama "Simulator …" saja tidak cukup.
   - Sesi akun demo (`*@demo.grason.local`), karena CS manusia palsu di simulator login
     seperti user web dan perlu mengisi data mundur.
-  Pelaku lain selalu memakai jam server; header diabaikan tanpa galat, sama seperti di
-  luar mode demo. Waktu permintaan sekarang ditentukan di `AksesGuard` setelah pelaku
-  dikenali, bukan di middleware.
+  - Pelaku lain selalu memakai jam server; header diabaikan tanpa galat, sama seperti di
+    luar mode demo. Waktu permintaan ditentukan di `AksesGuard` setelah pelaku dikenali,
+    bukan di middleware.
 - **API key hanya untuk endpoint `@PerluScope`.** Permintaan yang membawa API key ke
   endpoint lain, termasuk endpoint publik seperti login, ditolak 403 sebelum diproses.
   Tes memeriksa semua route terdaftar: tiap endpoint di luar scope CS AI menolak kunci CS
@@ -36,8 +36,7 @@ sambung dengan SaaS CS AI. Sebelumnya:
 
 ## Belum diputuskan
 
-- Respons 429 belum tercantum di `cs-ai.v1.yaml` dan `ethix.v1.yaml`. Sesuai aturan
-  kontrak, mencantumkannya berarti versi baru; sementara ini disampaikan langsung ke tim
-  SaaS CS AI.
+- Respons 429 tercantum di `cs-ai.v2.yaml` ([0006](0006-harga-cod-mengikuti-ai-chat.md)),
+  belum di `cs-ai.v1.yaml` dan `ethix.v1.yaml` (versi lama tidak diubah).
 - Login web belum punya batas percobaan per IP. Selama tunnel dibuka, sebaiknya tunnel
   hanya meneruskan path kontrak CS AI (lihat README).

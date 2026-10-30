@@ -42,6 +42,9 @@ export interface OrderPecahan {
   subtotal: number;
   diskon: number;
   ongkir: number;
+  subsidiOngkir: number;
+  biayaCod: number;
+  subsidiAdminCod: number;
   total: number;
   nilaiCod: number;
   beratGram: number;
@@ -52,11 +55,15 @@ export interface Checkout {
   metodeBayar: MetodeBayar;
   diskon: number;
   ongkir: number;
+  /** Rincian promo COD dari CS AI (keputusan 0006); default 0. */
+  subsidiOngkir?: number;
+  biayaCod?: number;
+  subsidiAdminCod?: number;
 }
 
 export class GalatCheckout extends Error {
   constructor(
-    readonly kode: 'diskon_melebihi_subtotal',
+    readonly kode: 'diskon_melebihi_subtotal' | 'rincian_tidak_valid',
     pesan: string,
   ) {
     super(pesan);
@@ -66,16 +73,43 @@ export class GalatCheckout extends Error {
 /** Urutan tetap: SSR dulu, lalu FHI. */
 const URUTAN_ENTITAS: readonly Entitas[] = ['SSR', 'FHI'];
 
+/** Total yang dibayar pembeli (keputusan 0006). */
+export function hitungTotal(r: {
+  subtotal: number;
+  diskon: number;
+  ongkir: number;
+  subsidiOngkir: number;
+  biayaCod: number;
+  subsidiAdminCod: number;
+}): number {
+  return r.subtotal - r.diskon + r.ongkir - r.subsidiOngkir + r.biayaCod - r.subsidiAdminCod;
+}
+
 /**
- * Pecah checkout menjadi satu order per entitas (keputusan 0004):
+ * Pecah checkout menjadi satu order per entitas (keputusan 0004 dan 0006):
  * - diskon dibagi sebanding subtotal,
- * - ongkir dibagi sebanding berat,
- * - nilai COD = subtotal − diskon + ongkir; 0 untuk transfer.
+ * - ongkir dibagi sebanding berat; subsidi ongkir sebanding ongkir tiap order,
+ * - biaya COD sebanding nilai order sebelum biaya COD; subsidi admin sebanding biaya COD,
+ * - total = subtotal − diskon + ongkir − subsidi ongkir + biaya COD − subsidi admin,
+ * - nilai COD = total; 0 untuk transfer.
+ * Subsidi dibagi sebanding pos yang disubsidi, jadi tidak pernah melebihinya di order mana pun.
  * SKU yang sama digabung menjadi satu baris item.
  */
 export function pecahCheckout(checkout: Checkout): OrderPecahan[] {
-  pastikanRupiah(checkout.diskon);
-  pastikanRupiah(checkout.ongkir);
+  const subsidiOngkir = checkout.subsidiOngkir ?? 0;
+  const biayaCod = checkout.biayaCod ?? 0;
+  const subsidiAdminCod = checkout.subsidiAdminCod ?? 0;
+  for (const n of [checkout.diskon, checkout.ongkir, subsidiOngkir, biayaCod, subsidiAdminCod])
+    pastikanRupiah(n);
+  if (subsidiOngkir > checkout.ongkir) {
+    throw new GalatCheckout('rincian_tidak_valid', 'Subsidi ongkir melebihi ongkir');
+  }
+  if (subsidiAdminCod > biayaCod) {
+    throw new GalatCheckout('rincian_tidak_valid', 'Subsidi admin COD melebihi biaya COD');
+  }
+  if (checkout.metodeBayar !== 'cod' && biayaCod > 0) {
+    throw new GalatCheckout('rincian_tidak_valid', 'Biaya COD hanya untuk order COD');
+  }
 
   const perEntitas = new Map<Entitas, Map<string, ItemCheckout>>();
   for (const item of checkout.items) {
@@ -111,13 +145,26 @@ export function pecahCheckout(checkout: Checkout): OrderPecahan[] {
     checkout.ongkir,
     pecahan.map((p) => p.beratGram),
   );
+  const subsidi = bagiSebanding(subsidiOngkir, ongkir);
+  const cod = bagiSebanding(
+    biayaCod,
+    pecahan.map((p, i) => p.subtotal - diskon[i]! + ongkir[i]! - subsidi[i]!),
+  );
+  const subsidiAdmin = bagiSebanding(subsidiAdminCod, cod);
 
   return pecahan.map((p, i) => {
-    const total = p.subtotal - diskon[i]! + ongkir[i]!;
-    return {
-      ...p,
+    const rincian = {
+      subtotal: p.subtotal,
       diskon: diskon[i]!,
       ongkir: ongkir[i]!,
+      subsidiOngkir: subsidi[i]!,
+      biayaCod: cod[i]!,
+      subsidiAdminCod: subsidiAdmin[i]!,
+    };
+    const total = hitungTotal(rincian);
+    return {
+      ...p,
+      ...rincian,
       total,
       nilaiCod: checkout.metodeBayar === 'cod' ? total : 0,
     };

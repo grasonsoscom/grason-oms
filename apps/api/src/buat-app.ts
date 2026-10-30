@@ -1,15 +1,17 @@
-import type { INestApplication } from '@nestjs/common';
+import { VersioningType, type INestApplication } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import type { NextFunction, Response } from 'express';
 import type { Pelaku, RequestOms } from './common/pelaku';
 import type { ConfigApi } from './config';
 import { DOMAIN_DEMO } from './demo/demo';
 
-export const PREFIX_API = 'api/v1';
+/** URL = /api/v<versi>/…; controller tanpa versi = v1. cs-ai.v2 ada di /api/v2 (keputusan 0006). */
+export const PREFIX_API = 'api';
 
 /** Pengaturan bersama untuk main.ts dan tes. */
 export function siapkanApp(app: INestApplication, config: ConfigApi): INestApplication {
   app.setGlobalPrefix(PREFIX_API);
+  app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
   app.use(cookieParser());
   // Waktu bawaan; AksesGuard menggantinya dengan X-Sim-Waktu bila pelaku boleh.
   app.use((req: RequestOms, _res: Response, next: NextFunction) => {

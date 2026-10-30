@@ -24,6 +24,8 @@ abstract class KlienDasar {
   jumlah = 0;
   /** false = abaikan opsi waktu (mode langsung memakai jam nyata). */
   kirimWaktu = true;
+  /** Versi API (/api/v1, /api/v2). CS AI palsu memakai cs-ai.v2. */
+  versi: 1 | 2 = 1;
 
   constructor(readonly baseUrl: string) {}
 
@@ -36,7 +38,7 @@ abstract class KlienDasar {
     opsi: OpsiPanggil = {},
   ): Promise<T> {
     this.jumlah += 1;
-    const res = await fetch(`${this.baseUrl}/api/v1${path}`, {
+    const res = await fetch(`${this.baseUrl}/api/v${this.versi}${path}`, {
       method: metode,
       headers: {
         'content-type': 'application/json',
@@ -64,8 +66,10 @@ export class KlienSistem extends KlienDasar {
   constructor(
     baseUrl: string,
     private readonly kunci: string,
+    versi: 1 | 2 = 1,
   ) {
     super(baseUrl);
+    this.versi = versi;
   }
 
   protected kepala() {

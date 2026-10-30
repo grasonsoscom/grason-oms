@@ -14,7 +14,7 @@
     "lint": "eslint . && pnpm contract:lint",
     "format": "prettier --write .",
     "test": "pnpm contract:lint && pnpm -r --workspace-concurrency=1 test",
-    "contract:lint": "redocly lint docs/api-contract/cs-ai.v1.yaml docs/api-contract/ethix.v1.yaml docs/api-contract/adv-ai.v1.yaml",
+    "contract:lint": "redocly lint docs/api-contract/cs-ai.v1.yaml docs/api-contract/cs-ai.v2.yaml docs/api-contract/ethix.v1.yaml docs/api-contract/adv-ai.v1.yaml docs/api-contract/adv-ai.v2.yaml",
     "db:migrate": "pnpm --filter @grason/db migrate:dev",
     "db:deploy": "pnpm --filter @grason/db migrate:deploy",
     "db:seed": "pnpm --filter @grason/db seed",

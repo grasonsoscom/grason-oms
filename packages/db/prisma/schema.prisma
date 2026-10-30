@@ -43,6 +43,13 @@ enum MetodeBayar {
   transfer
 }
 
+/// Segmen pelanggan menurut CS AI (keputusan 0006). nc = new customer, ro = repeat order.
+enum Segmen {
+  nc
+  ro
+  reseller
+}
+
 enum Agen {
   cs_ai
   cs_manusia
@@ -171,6 +178,7 @@ model Lead {
   handoverAt      DateTime?  @map("handover_at") @db.Timestamptz(3)
   handoverAlasan  String?    @map("handover_alasan")
   masukAt         DateTime   @map("masuk_at") @db.Timestamptz(3)
+  segmen          Segmen?
   responPertamaAt DateTime?  @map("respon_pertama_at") @db.Timestamptz(3)
   catatan         String?
   createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -194,17 +202,20 @@ model Lead {
 /// Satu checkout. Bila berisi produk SSR dan FHI, dipecah jadi satu order per entitas
 /// (aturan pemecahan: keputusan 0004). Nilai di sini = total seluruh checkout.
 model OrderGroup {
-  id          String       @id @default(uuid()) @db.Uuid
-  sumber      Sumber
-  externalId  String?      @map("external_id")
-  leadId      String?      @map("lead_id") @db.Uuid
-  customerId  String       @map("customer_id") @db.Uuid
-  metodeBayar MetodeBayar? @map("metode_bayar")
-  subtotal    Int          @default(0)
-  diskon      Int          @default(0)
-  ongkir      Int          @default(0)
-  total       Int          @default(0)
-  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  id              String       @id @default(uuid()) @db.Uuid
+  sumber          Sumber
+  externalId      String?      @map("external_id")
+  leadId          String?      @map("lead_id") @db.Uuid
+  customerId      String       @map("customer_id") @db.Uuid
+  metodeBayar     MetodeBayar? @map("metode_bayar")
+  subtotal        Int          @default(0)
+  diskon          Int          @default(0)
+  ongkir          Int          @default(0)
+  subsidiOngkir   Int          @default(0) @map("subsidi_ongkir")
+  biayaCod        Int          @default(0) @map("biaya_cod")
+  subsidiAdminCod Int          @default(0) @map("subsidi_admin_cod")
+  total           Int          @default(0)
+  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
   lead     Lead?    @relation(fields: [leadId], references: [id])
   customer Customer @relation(fields: [customerId], references: [id])
@@ -231,7 +242,12 @@ model Order {
   diskon                 Int         @default(0)
   ongkir                 Int         @default(0)
   total                  Int
+  /// Rincian harga dari CS AI (keputusan 0006); 0 untuk order cs-ai.v1.
+  subsidiOngkir          Int         @default(0) @map("subsidi_ongkir")
+  biayaCod               Int         @default(0) @map("biaya_cod")
+  subsidiAdminCod        Int         @default(0) @map("subsidi_admin_cod")
   nilaiCod               Int         @default(0) @map("nilai_cod")
+  segmen                 Segmen?
   status                 OrderStatus @default(baru)
   /// Pelanggan bertanda RTS saat order dibuat: verifikasi hanya oleh CS manusia.
   perluVerifikasiManusia Boolean     @default(false) @map("perlu_verifikasi_manusia")

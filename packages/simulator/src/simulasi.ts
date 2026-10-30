@@ -8,10 +8,12 @@ import {
   buatIklan,
   namaAcak,
   noWaAcak,
+  promoCod,
   type Iklan,
+  type Segmen,
 } from './data';
 import { GalatHttp, KlienSistem, KlienUser } from './klien';
-import type { components as CsAi } from './kontrak/cs-ai.v1';
+import type { components as CsAi } from './kontrak/cs-ai.v2';
 import type { components as Ethix } from './kontrak/ethix.v1';
 
 type Lead = CsAi['schemas']['Lead'];
@@ -128,6 +130,8 @@ interface Pelanggan {
   noWa: string;
   nama: string;
   alamat: ReturnType<typeof alamatAcak>;
+  /** Segmen menurut CS AI: pelanggan yang kembali menjadi ro, kecuali reseller. */
+  segmen: Segmen;
 }
 
 interface Peristiwa {
@@ -190,7 +194,7 @@ export class Simulasi {
   constructor(private readonly o: OpsiSimulasi) {
     this.a = new Acak(o.seed);
     this.p = { ...PELUANG_DEFAULT, ...o.peluang };
-    this.csAi = new KlienSistem(o.baseUrl, o.kunci.csAi);
+    this.csAi = new KlienSistem(o.baseUrl, o.kunci.csAi, 2);
     this.ethix = new KlienSistem(o.baseUrl, o.kunci.ethix);
     this.sekarang = (o.sekarang ?? new Date()).getTime();
   }
@@ -406,9 +410,17 @@ export class Simulasi {
   // ─────────────────────────── CS AI palsu ───────────────────────────
 
   private pelangganAcak(): Pelanggan {
-    if (this.pelanggan.length > 5 && this.a.peluang(this.p.repeat))
-      return this.a.pilih(this.pelanggan);
-    const baru = { noWa: noWaAcak(this.a), nama: namaAcak(this.a), alamat: alamatAcak(this.a) };
+    if (this.pelanggan.length > 5 && this.a.peluang(this.p.repeat)) {
+      const lama = this.a.pilih(this.pelanggan);
+      if (lama.segmen === 'nc') lama.segmen = 'ro';
+      return lama;
+    }
+    const baru: Pelanggan = {
+      noWa: noWaAcak(this.a),
+      nama: namaAcak(this.a),
+      alamat: alamatAcak(this.a),
+      segmen: this.a.peluang(0.05) ? 'reseller' : 'nc',
+    };
     this.pelanggan.push(baru);
     return baru;
   }
@@ -435,6 +447,7 @@ export class Simulasi {
         ad_id: iklan?.adId ?? null,
         sku_ditanya: sku,
         masuk_at: t.toISOString(),
+        segmen: c.segmen,
       },
       { waktu: t },
     );
@@ -501,18 +514,25 @@ export class Simulasi {
     return items.filter((x) => this.katalog.some((h) => h.sku === x.sku));
   }
 
-  private nilaiCheckout(items: { sku: string; qty: number }[]) {
+  private nilaiCheckout(items: { sku: string; qty: number }[], c: Pelanggan) {
     const subtotal = items.reduce(
       (a, x) => a + (this.katalog.find((h) => h.sku === x.sku)?.harga_jual ?? 0) * x.qty,
       0,
     );
     const ongkir = this.a.antara(9, 25) * 1000;
     const diskon = this.a.peluang(0.2) ? Math.min(subtotal, this.a.pilih([5000, 10000, 15000])) : 0;
-    return {
+    const metode = this.a.peluang(this.p.cod) ? ('cod' as const) : ('transfer' as const);
+    // Promo COD dihitung CS AI (aturan GrasOn AI Chat); OMS hanya memeriksa totalnya.
+    const promo = promoCod({
+      nilaiBarang: subtotal - diskon,
       ongkir,
-      diskon,
-      metode: this.a.peluang(this.p.cod) ? ('cod' as const) : ('transfer' as const),
-    };
+      segmen: c.segmen,
+      provinsi: c.alamat.provinsi,
+      cod: metode === 'cod',
+    });
+    const total =
+      subtotal - diskon + ongkir - promo.subsidiOngkir + promo.biayaCod - promo.subsidiAdminCod;
+    return { ongkir, diskon, metode, ...promo, total };
   }
 
   private async checkoutCsAi(
@@ -523,7 +543,7 @@ export class Simulasi {
     i: number,
   ): Promise<void> {
     const items = this.itemAcak(sku);
-    const n = this.nilaiCheckout(items);
+    const n = this.nilaiCheckout(items, c);
     const body: OrderBaru = {
       external_id: `sim-${this.o.seed}-checkout-${i}`,
       lead_id: leadId,
@@ -533,6 +553,11 @@ export class Simulasi {
       items,
       ongkir: n.ongkir,
       diskon: n.diskon,
+      subsidi_ongkir: n.subsidiOngkir,
+      biaya_cod: n.biayaCod,
+      subsidi_admin_cod: n.subsidiAdminCod,
+      total: n.total,
+      segmen: c.segmen,
     };
     let checkout: Checkout;
     try {
@@ -696,7 +721,7 @@ export class Simulasi {
     sku: string,
   ): Promise<void> {
     const items = this.itemAcak(sku);
-    const n = this.nilaiCheckout(items);
+    const n = this.nilaiCheckout(items, c);
     let hasil: { orders: { id: string; total: number }[] };
     try {
       hasil = await klien.panggil(
@@ -716,6 +741,10 @@ export class Simulasi {
           items,
           ongkir: n.ongkir,
           diskon: n.diskon,
+          subsidiOngkir: n.subsidiOngkir,
+          biayaCod: n.biayaCod,
+          subsidiAdminCod: n.subsidiAdminCod,
+          segmen: c.segmen,
         },
         { waktu: t },
       );

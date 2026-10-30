@@ -99,7 +99,16 @@ describe('ringkasan', () => {
     });
     await ctx.prisma.order.update({
       where: { id: hariIni.id },
-      data: { status: 'terkirim', terkirimAt: new Date(), total: 100_000 },
+      // GMV = subtotal − diskon; ongkir dan biaya COD tidak dihitung.
+      data: {
+        status: 'terkirim',
+        terkirimAt: new Date(),
+        subtotal: 100_000,
+        diskon: 5000,
+        ongkir: 20_000,
+        biayaCod: 3000,
+        total: 118_000,
+      },
     });
 
     const ops = await loginSebagai(ctx, 'orkestrator');
@@ -110,7 +119,7 @@ describe('ringkasan', () => {
       leadMasuk: { nilai: 1, sebelumnya: 1 },
       orderDibuat: { nilai: 1, sebelumnya: 1 },
       orderTerkirim: { nilai: 1, sebelumnya: 0 },
-      gmvTerkirim: { nilai: 100_000, sebelumnya: 0 },
+      gmvTerkirim: { nilai: 95_000, sebelumnya: 0 },
     });
     const minggu = await ringkasan(ops, '?periode=7_hari');
     expect(minggu.periode.orderDibuat).toEqual({ nilai: 2, sebelumnya: 1 });

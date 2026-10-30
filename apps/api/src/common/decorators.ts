@@ -27,3 +27,9 @@ export const PelakuSaatIni = createParamDecorator((_: unknown, ctx: ExecutionCon
   if (!req.pelaku) throw new Error('Pelaku belum terisi; pastikan AksesGuard aktif');
   return req.pelaku;
 });
+
+/** Versi kontrak dari URL: /api/v2/… = 2, selain itu 1. */
+export const VersiKontrak = createParamDecorator((_: unknown, ctx: ExecutionContext): 1 | 2 => {
+  const req = ctx.switchToHttp().getRequest<RequestOms>();
+  return /^\/api\/v2\//.test(req.originalUrl) ? 2 : 1;
+});

@@ -3,13 +3,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { Acak } from '../src/acak';
+import { promoCod } from '../src/data';
 import { muatGudang, muatKonfigurasi, simpanGudang } from '../src/konfigurasi';
 import type { KeadaanGudang } from '../src/simulasi';
 import { buatTipeKontrak, SPEK_KONTRAK } from '../src/kontrak/buat';
 
 describe('tipe kontrak', () => {
-  it.each(SPEK_KONTRAK)('src/kontrak/%s.v1.ts sesuai docs/api-contract', async (spek) => {
-    const tersimpan = readFileSync(path.resolve(__dirname, `../src/kontrak/${spek}.v1.ts`), 'utf8');
+  it.each(SPEK_KONTRAK)('src/kontrak/%s.ts sesuai docs/api-contract', async (spek) => {
+    const tersimpan = readFileSync(path.resolve(__dirname, `../src/kontrak/${spek}.ts`), 'utf8');
     // Gagal di sini: jalankan `pnpm --filter @grason/simulator gen:kontrak`.
     expect(tersimpan).toBe(await buatTipeKontrak(spek));
   });
@@ -71,5 +72,53 @@ describe('gudang Ethix palsu', () => {
     writeFileSync(file, JSON.stringify({ ...k, versi: 2 }));
     expect(muatGudang(file)).toBeNull();
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe('promo COD (tiruan GrasOn AI Chat)', () => {
+  it('mengikuti codQuote: subsidi ongkir, biaya COD 3%, subsidi admin, minimum order', () => {
+    // NC Jawa: 95.000 + 30.000 = 125.000 ≥ 120.000 → subsidi ongkir 25.000, admin 3.750.
+    expect(
+      promoCod({
+        nilaiBarang: 95_000,
+        ongkir: 30_000,
+        segmen: 'nc',
+        provinsi: 'Jawa Barat',
+        cod: true,
+      }),
+    ).toEqual({ subsidiOngkir: 25_000, biayaCod: 3750, subsidiAdminCod: 3750 });
+    // RO luar Jawa dengan ongkir 60.000: subsidi maks 50.000.
+    expect(
+      promoCod({ nilaiBarang: 200_000, ongkir: 60_000, segmen: 'ro', provinsi: 'Bali', cod: true }),
+    ).toEqual({ subsidiOngkir: 50_000, biayaCod: 7800, subsidiAdminCod: 5000 });
+    // Di bawah minimum: tanpa subsidi, biaya COD tetap.
+    expect(
+      promoCod({
+        nilaiBarang: 42_000,
+        ongkir: 10_000,
+        segmen: 'nc',
+        provinsi: 'DKI Jakarta',
+        cod: true,
+      }),
+    ).toEqual({ subsidiOngkir: 0, biayaCod: 1560, subsidiAdminCod: 0 });
+    // Reseller tanpa subsidi ongkir; transfer tanpa promo.
+    expect(
+      promoCod({
+        nilaiBarang: 250_000,
+        ongkir: 20_000,
+        segmen: 'reseller',
+        provinsi: 'Jawa Timur',
+        cod: true,
+      }).subsidiOngkir,
+    ).toBe(0);
+    expect(
+      promoCod({
+        nilaiBarang: 250_000,
+        ongkir: 20_000,
+        segmen: 'nc',
+        provinsi: 'Jawa Timur',
+        cod: false,
+      }),
+    ).toEqual({ subsidiOngkir: 0, biayaCod: 0, subsidiAdminCod: 0 });
   });
 });

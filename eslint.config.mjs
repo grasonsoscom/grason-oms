@@ -9,7 +9,7 @@ export default tseslint.config(
       '**/generated/**',
       '**/node_modules/**',
       '**/next-env.d.ts',
-      'packages/simulator/src/kontrak/*.v1.ts',
+      'packages/simulator/src/kontrak/*.v[0-9].ts',
     ],
   },
   js.configs.recommended,

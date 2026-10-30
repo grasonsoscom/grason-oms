@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState, type FormEvent } from 'react';
-import type { MetodeBayar } from '@grason/shared';
+import type { MetodeBayar, Segmen } from '@grason/shared';
 import { Isian, Kartu, PesanGalat, Tombol, kelasInput, useData } from '@/components/ui';
 import { api, GalatApi } from '@/lib/api';
-import { rupiah } from '@/lib/format';
+import { LABEL_SEGMEN, rupiah } from '@/lib/format';
 import type { DetailLead, PecahanPratinjau, Produk } from '@/lib/tipe';
 
 interface Baris {
@@ -26,6 +26,11 @@ function FormOrder() {
   const [metode, setMetode] = useState<MetodeBayar>('cod');
   const [ongkir, setOngkir] = useState(0);
   const [diskon, setDiskon] = useState(0);
+  // Rincian promo COD diisi manual mengikuti aturan GrasOn AI Chat (keputusan 0006).
+  const [subsidiOngkir, setSubsidiOngkir] = useState(0);
+  const [biayaCod, setBiayaCod] = useState(0);
+  const [subsidiAdminCod, setSubsidiAdminCod] = useState(0);
+  const [segmen, setSegmen] = useState<Segmen | ''>('');
   const [penerima, setPenerima] = useState({ nama: '', noWa: '' });
   const [alamat, setAlamat] = useState({
     alamat: '',
@@ -67,8 +72,20 @@ function FormOrder() {
       setItems((x) => (x[0]?.sku ? x : [{ sku: lead.produkDitanya!.sku, qty: 1 }]));
   }, [lead]);
 
+  useEffect(() => {
+    if (lead?.segmen) setSegmen(lead.segmen);
+  }, [lead]);
+
   const itemValid = items.filter((i) => i.sku && i.qty > 0);
-  const kunciPratinjau = JSON.stringify({ itemValid, metode, ongkir, diskon });
+  // Biaya dan subsidi admin COD hanya berlaku untuk COD.
+  const rincian = {
+    ongkir,
+    diskon,
+    subsidiOngkir,
+    biayaCod: metode === 'cod' ? biayaCod : 0,
+    subsidiAdminCod: metode === 'cod' ? subsidiAdminCod : 0,
+  };
+  const kunciPratinjau = JSON.stringify({ itemValid, metode, rincian });
   useEffect(() => {
     if (itemValid.length === 0) {
       setPratinjau(null);
@@ -77,7 +94,7 @@ function FormOrder() {
     const t = setTimeout(() => {
       api<typeof pratinjau>('/app/orders/pratinjau', {
         method: 'POST',
-        body: JSON.stringify({ items: itemValid, metodeBayar: metode, ongkir, diskon }),
+        body: JSON.stringify({ items: itemValid, metodeBayar: metode, ...rincian }),
       })
         .then((p) => {
           setPratinjau(p);
@@ -102,8 +119,8 @@ function FormOrder() {
           penerima,
           alamat,
           items: itemValid,
-          ongkir,
-          diskon,
+          ...rincian,
+          ...(segmen ? { segmen } : {}),
           ...(catatan ? { catatan } : {}),
         }),
       });
@@ -219,6 +236,51 @@ function FormOrder() {
               onChange={(e) => setDiskon(Number(e.target.value))}
             />
           </Isian>
+          <Isian label="Subsidi ongkir (Rp)">
+            <input
+              type="number"
+              min={0}
+              className={kelasInput}
+              value={subsidiOngkir}
+              onChange={(e) => setSubsidiOngkir(Number(e.target.value))}
+            />
+          </Isian>
+          {metode === 'cod' && (
+            <>
+              <Isian label="Biaya COD (Rp)">
+                <input
+                  type="number"
+                  min={0}
+                  className={kelasInput}
+                  value={biayaCod}
+                  onChange={(e) => setBiayaCod(Number(e.target.value))}
+                />
+              </Isian>
+              <Isian label="Subsidi admin COD (Rp)">
+                <input
+                  type="number"
+                  min={0}
+                  className={kelasInput}
+                  value={subsidiAdminCod}
+                  onChange={(e) => setSubsidiAdminCod(Number(e.target.value))}
+                />
+              </Isian>
+            </>
+          )}
+          <Isian label="Segmen pelanggan">
+            <select
+              className={kelasInput}
+              value={segmen}
+              onChange={(e) => setSegmen(e.target.value as Segmen | '')}
+            >
+              <option value="">Belum diketahui</option>
+              {(Object.keys(LABEL_SEGMEN) as Segmen[]).map((k) => (
+                <option key={k} value={k}>
+                  {LABEL_SEGMEN[k]}
+                </option>
+              ))}
+            </select>
+          </Isian>
         </div>
       </Kartu>
 
@@ -252,7 +314,14 @@ function FormOrder() {
                 <div className="mt-2 space-y-0.5 text-slate-600">
                   <div>
                     Diskon −{rupiah(o.diskon)} · Ongkir {rupiah(o.ongkir)}
+                    {o.subsidiOngkir > 0 && <> · Subsidi ongkir −{rupiah(o.subsidiOngkir)}</>}
                   </div>
+                  {o.biayaCod > 0 && (
+                    <div>
+                      Biaya COD {rupiah(o.biayaCod)}
+                      {o.subsidiAdminCod > 0 && <> · Subsidi admin −{rupiah(o.subsidiAdminCod)}</>}
+                    </div>
+                  )}
                   <div className="font-semibold text-slate-900">
                     {metode === 'cod' ? 'Nilai COD' : 'Total'} {rupiah(o.total)}
                   </div>

@@ -117,6 +117,12 @@ describe('pnpm sim', () => {
     const n = (s: string) => perStatus.find((p) => p.status === s)?._count ?? 0;
     expect(n('terkirim')).toBeGreaterThan(0);
     expect(n('rts')).toBeGreaterThan(0);
+    // CS AI palsu memakai cs-ai.v2: rincian promo COD dan segmen tersimpan.
+    expect(await ctx.prisma.order.count({ where: { biayaCod: { gt: 0 } } })).toBeGreaterThan(0);
+    expect(await ctx.prisma.order.count({ where: { subsidiOngkir: { gt: 0 } } })).toBeGreaterThan(
+      0,
+    );
+    expect(await ctx.prisma.lead.count({ where: { segmen: { not: null } } })).toBeGreaterThan(0);
     expect(await ctx.prisma.lead.count({ where: { handover: true } })).toBeGreaterThan(0);
     expect(await ctx.prisma.lead.count({ where: { agen: 'cs_manusia' } })).toBeGreaterThan(0);
     expect(

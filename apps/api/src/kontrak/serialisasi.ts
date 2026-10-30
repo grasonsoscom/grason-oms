@@ -13,7 +13,10 @@ function rapikan<T extends Record<string, unknown>>(o: T): T {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
 }
 
-export function leadKontrak(l: LeadLengkap) {
+/** Versi kontrak cs-ai: v2 menambah segmen dan rincian harga COD (keputusan 0006). */
+export type VersiCsAi = 1 | 2;
+
+export function leadKontrak(l: LeadLengkap, v: VersiCsAi = 1) {
   return rapikan({
     id: l.id,
     external_id: l.externalId ?? '',
@@ -29,12 +32,13 @@ export function leadKontrak(l: LeadLengkap) {
     campaign_id: l.campaignId,
     adset_id: l.adsetId,
     ad_id: l.adId,
+    segmen: v === 2 ? l.segmen : undefined,
   });
 }
 
-export function orderKontrak(o: OrderLengkap) {
+export function orderKontrak(o: OrderLengkap, v: VersiCsAi = 1) {
   const kiriman = o.shipments[0];
-  return {
+  return rapikan({
     id: o.id,
     nomor: o.nomor,
     order_group_id: o.orderGroupId,
@@ -47,8 +51,12 @@ export function orderKontrak(o: OrderLengkap) {
     subtotal: o.subtotal,
     diskon: o.diskon,
     ongkir: o.ongkir,
+    subsidi_ongkir: v === 2 ? o.subsidiOngkir : undefined,
+    biaya_cod: v === 2 ? o.biayaCod : undefined,
+    subsidi_admin_cod: v === 2 ? o.subsidiAdminCod : undefined,
     total: o.total,
     nilai_cod: o.nilaiCod,
+    segmen: v === 2 ? o.segmen : undefined,
     items: o.items.map((i) => ({
       sku: i.product.sku,
       nama: i.product.nama,
@@ -69,17 +77,18 @@ export function orderKontrak(o: OrderLengkap) {
       : null,
     dibuat_at: o.createdAt.toISOString(),
     terverifikasi_at: iso(o.terverifikasiAt),
-  };
+  });
 }
 
 export function checkoutKontrak(
   grup: { id: string; externalId: string | null },
   orders: OrderLengkap[],
+  v: VersiCsAi = 1,
 ) {
   return {
     order_group_id: grup.id,
     external_id: grup.externalId ?? '',
-    orders: orders.map(orderKontrak),
+    orders: orders.map((o) => orderKontrak(o, v)),
   };
 }
 

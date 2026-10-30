@@ -7,6 +7,7 @@ import { Isian, Kartu, Lencana, PesanGalat, Tombol, kelasInput, useData } from '
 import { api, GalatApi } from '@/lib/api';
 import {
   LABEL_AGEN,
+  LABEL_SEGMEN,
   LABEL_SLA,
   WARNA_SLA,
   WARNA_STATUS_ORDER,
@@ -113,6 +114,7 @@ export default function DetailOrderPage() {
               {o.cs && ` · ${o.cs.nama}`}
             </Baris>
             <Baris label="Metode bayar">{o.metodeBayar === 'cod' ? 'COD' : 'Transfer'}</Baris>
+            <Baris label="Segmen">{o.segmen ? LABEL_SEGMEN[o.segmen] : '–'}</Baris>
             <Baris label="Ref Ethix">
               <span className="font-mono">{o.ethixRef ?? '–'}</span>
             </Baris>
@@ -189,6 +191,22 @@ export default function DetailOrderPage() {
                 </td>
                 <td className="text-right">{rupiah(o.ongkir)}</td>
               </tr>
+              {(
+                [
+                  ['Subsidi ongkir', -o.subsidiOngkir],
+                  ['Biaya COD', o.biayaCod],
+                  ['Subsidi admin COD', -o.subsidiAdminCod],
+                ] as const
+              )
+                .filter(([, n]) => n !== 0)
+                .map(([label, n]) => (
+                  <tr key={label}>
+                    <td colSpan={3} className="text-right text-slate-500">
+                      {label}
+                    </td>
+                    <td className="text-right">{n < 0 ? `−${rupiah(-n)}` : rupiah(n)}</td>
+                  </tr>
+                ))}
               <tr className="font-semibold">
                 <td colSpan={3} className="text-right">
                   Total{o.metodeBayar === 'cod' && ' / nilai COD'}

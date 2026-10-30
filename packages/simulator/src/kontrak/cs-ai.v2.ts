@@ -230,6 +230,11 @@ export interface components {
         StatusOrder: "baru" | "terverifikasi" | "di_gudang" | "dikirim" | "terkirim" | "batal" | "rts";
         /** @enum {string} */
         MetodeBayar: "cod" | "transfer";
+        /**
+         * @description Segmen pelanggan menurut CS AI. `nc` = new customer, `ro` = repeat order.
+         * @enum {string}
+         */
+        Segmen: "nc" | "ro" | "reseller";
         Atribusi: {
             /** @enum {string} */
             kanal?: "click_to_whatsapp" | "landing_page" | "organik" | "lainnya";
@@ -251,6 +256,7 @@ export interface components {
              */
             sku_ditanya?: string;
             masuk_at: components["schemas"]["Waktu"];
+            segmen?: components["schemas"]["Segmen"];
             catatan?: string;
         };
         UbahLead: {
@@ -277,6 +283,7 @@ export interface components {
             handover_at?: components["schemas"]["Waktu"] | null;
             masuk_at: components["schemas"]["Waktu"];
             respon_pertama_at?: components["schemas"]["Waktu"] | null;
+            segmen?: components["schemas"]["Segmen"] | null;
         };
         Alamat: {
             /** @description Jalan, nomor rumah, RT/RW, patokan. */
@@ -314,6 +321,18 @@ export interface components {
             ongkir?: components["schemas"]["Rupiah"];
             /** @description Diskon untuk seluruh checkout. Pembagian ke order per entitas diatur OMS. */
             diskon?: components["schemas"]["Rupiah"];
+            /** @description Subsidi ongkir dari promo CS AI; maksimal `ongkir`. */
+            subsidi_ongkir?: components["schemas"]["Rupiah"];
+            /** @description Biaya COD yang dibebankan ke pembeli (sebelum subsidi). 0 untuk transfer. */
+            biaya_cod?: components["schemas"]["Rupiah"];
+            /** @description Subsidi admin COD; maksimal `biaya_cod`. 0 untuk transfer. */
+            subsidi_admin_cod?: components["schemas"]["Rupiah"];
+            /**
+             * @description Yang dibayar pembeli untuk seluruh checkout, hasil hitungan CS AI. Harus sama
+             *     dengan subtotal − diskon + ongkir − subsidi_ongkir + biaya_cod − subsidi_admin_cod.
+             */
+            total: components["schemas"]["Rupiah"];
+            segmen?: components["schemas"]["Segmen"];
             catatan?: string;
         };
         Verifikasi: {
@@ -358,8 +377,17 @@ export interface components {
             subtotal: components["schemas"]["Rupiah"];
             diskon: components["schemas"]["Rupiah"];
             ongkir: components["schemas"]["Rupiah"];
+            subsidi_ongkir: components["schemas"]["Rupiah"];
+            biaya_cod: components["schemas"]["Rupiah"];
+            subsidi_admin_cod: components["schemas"]["Rupiah"];
+            /**
+             * @description subtotal − diskon + ongkir − subsidi_ongkir + biaya_cod − subsidi_admin_cod.
+             *     Pada checkout campur, ongkir dan subsidi ongkir dibagi sebanding berat; biaya
+             *     COD sebanding nilai order sebelum biaya COD; subsidi admin sebanding biaya COD.
+             */
             total: components["schemas"]["Rupiah"];
             nilai_cod: components["schemas"]["Rupiah"];
+            segmen: components["schemas"]["Segmen"] | null;
             items: components["schemas"]["ItemOrder"][];
             pengiriman?: components["schemas"]["Pengiriman"] | null;
             dibuat_at: components["schemas"]["Waktu"];
@@ -468,6 +496,28 @@ export interface components {
                 "application/json": components["schemas"]["Galat"];
             };
         };
+        /** @description Melewati batas 60 permintaan per menit untuk API key ini. */
+        TerlaluBanyak: {
+            headers: {
+                /** @description Detik sebelum boleh mencoba lagi. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                /**
+                 * @example {
+                 *       "error": {
+                 *         "kode": "terlalu_banyak_permintaan",
+                 *         "pesan": "Melewati batas 60 permintaan per menit untuk API key ini",
+                 *         "detail": {
+                 *           "coba_lagi_detik": 12
+                 *         }
+                 *       }
+                 *     }
+                 */
+                "application/json": components["schemas"]["Galat"];
+            };
+        };
         /** @description Data tidak ditemukan. */
         TidakDitemukan: {
             headers: {
@@ -533,6 +583,7 @@ export interface operations {
             400: components["responses"]["ValidasiGagal"];
             401: components["responses"]["TidakTerautentikasi"];
             403: components["responses"]["TidakDiizinkan"];
+            429: components["responses"]["TerlaluBanyak"];
         };
     };
     ambilLead: {
@@ -558,6 +609,7 @@ export interface operations {
             };
             401: components["responses"]["TidakTerautentikasi"];
             404: components["responses"]["TidakDitemukan"];
+            429: components["responses"]["TerlaluBanyak"];
         };
     };
     ubahLead: {
@@ -589,6 +641,7 @@ export interface operations {
             401: components["responses"]["TidakTerautentikasi"];
             404: components["responses"]["TidakDitemukan"];
             409: components["responses"]["Konflik"];
+            429: components["responses"]["TerlaluBanyak"];
         };
     };
     buatOrder: {
@@ -636,7 +689,10 @@ export interface operations {
             };
             /**
              * @description Order tidak dapat diproses. `error.kode`: `stok_tidak_cukup` (detail berisi SKU
-             *     dan stok tersedia), `sku_tidak_dikenal`, atau `produk_nonaktif`.
+             *     dan stok tersedia), `sku_tidak_dikenal`, `produk_nonaktif`,
+             *     `rincian_tidak_valid` (mis. subsidi ongkir melebihi ongkir, biaya COD pada
+             *     transfer), atau `total_tidak_cocok` (detail berisi hitungan OMS; biasanya harga
+             *     di CS AI berbeda dengan `GET /prices`).
              */
             422: {
                 headers: {
@@ -661,6 +717,7 @@ export interface operations {
                     "application/json": components["schemas"]["Galat"];
                 };
             };
+            429: components["responses"]["TerlaluBanyak"];
         };
     };
     ambilOrder: {
@@ -686,6 +743,7 @@ export interface operations {
             };
             401: components["responses"]["TidakTerautentikasi"];
             404: components["responses"]["TidakDitemukan"];
+            429: components["responses"]["TerlaluBanyak"];
         };
     };
     verifikasiOrder: {
@@ -734,6 +792,7 @@ export interface operations {
                     "application/json": components["schemas"]["Galat"];
                 };
             };
+            429: components["responses"]["TerlaluBanyak"];
         };
     };
     daftarStok: {
@@ -760,6 +819,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["TidakTerautentikasi"];
+            429: components["responses"]["TerlaluBanyak"];
         };
     };
     daftarHarga: {
@@ -783,6 +843,7 @@ export interface operations {
                 };
             };
             401: components["responses"]["TidakTerautentikasi"];
+            429: components["responses"]["TerlaluBanyak"];
         };
     };
     webhookOrderStatusChanged: {

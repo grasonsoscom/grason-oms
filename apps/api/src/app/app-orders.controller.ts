@@ -16,6 +16,7 @@ import {
   ALAMAT_DISAMARKAN,
   BATAS_UMUR_BARU_JAM,
   METODE_BAYAR,
+  SEGMEN,
   STATUS_BOLEH_BATAL,
   STATUS_BOLEH_KOREKSI_ALAMAT,
   tandaSlaResi,
@@ -68,12 +69,17 @@ const skemaPratinjau = z.object({
   items: skemaItem,
   ongkir: z.number().int().min(0).default(0),
   diskon: z.number().int().min(0).default(0),
+  // Diisi manual oleh CS manusia mengikuti promo GrasOn AI Chat (keputusan 0006).
+  subsidiOngkir: z.number().int().min(0).default(0),
+  biayaCod: z.number().int().min(0).default(0),
+  subsidiAdminCod: z.number().int().min(0).default(0),
 });
 
 const skemaOrderBaru = skemaPratinjau.extend({
   leadId: z.uuid(),
   penerima: z.object({ nama: teks(100), noWa: teks(20) }),
   alamat: skemaAlamat,
+  segmen: z.enum(SEGMEN).optional(),
   catatan: z.string().max(1000).optional(),
 });
 
@@ -226,8 +232,12 @@ export class AppOrdersController {
       subtotal: o.subtotal,
       diskon: o.diskon,
       ongkir: o.ongkir,
+      subsidiOngkir: o.subsidiOngkir,
+      biayaCod: o.biayaCod,
+      subsidiAdminCod: o.subsidiAdminCod,
       total: o.total,
       nilaiCod: o.nilaiCod,
+      segmen: o.segmen,
       perluVerifikasiManusia: o.perluVerifikasiManusia,
       pelangganTandaRts: o.customer.tandaRts,
       catatan: o.catatan,
@@ -325,6 +335,10 @@ export class AppOrdersController {
         items: b.items,
         ongkir: b.ongkir,
         diskon: b.diskon,
+        subsidiOngkir: b.subsidiOngkir,
+        biayaCod: b.biayaCod,
+        subsidiAdminCod: b.subsidiAdminCod,
+        segmen: b.segmen,
         catatan: b.catatan,
       },
       pelaku,

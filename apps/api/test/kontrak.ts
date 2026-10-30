@@ -4,17 +4,19 @@ import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
 import { parse } from 'yaml';
 
-// Validasi respons API terhadap docs/api-contract/*.v1.yaml. Dipakai lagi oleh tes
+// Validasi respons API terhadap docs/api-contract/*.yaml. Dipakai lagi oleh tes
 // kontrak adaptor nyata di Fase 3.
 
 const DIR_KONTRAK = path.resolve(__dirname, '../../../docs/api-contract');
-const SPEK = ['cs-ai', 'ethix', 'adv-ai'] as const;
+/** Nama tanpa versi = v1. */
+const SPEK = ['cs-ai', 'cs-ai.v2', 'ethix', 'adv-ai', 'adv-ai.v2'] as const;
 export type Spek = (typeof SPEK)[number];
 
 const ajv = new Ajv2020({ strict: false, allErrors: true });
 addFormats(ajv);
 for (const nama of SPEK) {
-  const isi = parse(readFileSync(path.join(DIR_KONTRAK, `${nama}.v1.yaml`), 'utf8')) as object;
+  const file = nama.includes('.v') ? `${nama}.yaml` : `${nama}.v1.yaml`;
+  const isi = parse(readFileSync(path.join(DIR_KONTRAK, file), 'utf8')) as object;
   ajv.addSchema({ ...isi, $id: nama });
 }
 
@@ -24,7 +26,7 @@ export function cocokKontrak(spek: Spek, skema: string, data: unknown): void {
   if (!validasi) throw new Error(`Skema ${spek}#${skema} tidak ada`);
   if (!validasi(data)) {
     throw new Error(
-      `Respons tidak sesuai ${spek}.v1 ${skema}:\n${ajv.errorsText(validasi.errors, { separator: '\n' })}\n${JSON.stringify(data, null, 2)}`,
+      `Respons tidak sesuai ${spek} ${skema}:\n${ajv.errorsText(validasi.errors, { separator: '\n' })}\n${JSON.stringify(data, null, 2)}`,
     );
   }
 }

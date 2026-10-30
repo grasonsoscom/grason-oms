@@ -66,6 +66,13 @@ export const WARNA_SLA: Record<TandaSla, string> = {
 
 export const LABEL_AGEN = { cs_ai: 'CS AI', cs_manusia: 'CS manusia' } as const;
 
+/** Segmen pelanggan menurut GrasOn AI Chat. */
+export const LABEL_SEGMEN = {
+  nc: 'New Customer',
+  ro: 'Repeat Order',
+  reseller: 'Reseller',
+} as const;
+
 export const LABEL_KANAL: Record<string, string> = {
   click_to_whatsapp: 'Click-to-WhatsApp',
   landing_page: 'Landing page',

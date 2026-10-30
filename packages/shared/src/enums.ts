@@ -42,6 +42,10 @@ export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
 export const METODE_BAYAR = ['cod', 'transfer'] as const;
 export type MetodeBayar = (typeof METODE_BAYAR)[number];
 
+/** Segmen pelanggan menurut CS AI (keputusan 0006). nc = new customer, ro = repeat order. */
+export const SEGMEN = ['nc', 'ro', 'reseller'] as const;
+export type Segmen = (typeof SEGMEN)[number];
+
 /** Siapa yang menangani lead/order. */
 export const AGEN = ['cs_ai', 'cs_manusia'] as const;
 export type Agen = (typeof AGEN)[number];

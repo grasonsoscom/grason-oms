@@ -1,9 +1,10 @@
 # packages/simulator
 
 CS AI, Ethix, dan CS manusia palsu untuk Fase 1–2. Simulator hanya memanggil OMS lewat
-API yang sama dengan sistem nyata: CS AI dan Ethix memakai API key dan endpoint
-`docs/api-contract/*.v1.yaml`; CS manusia login seperti user web. Pindah ke data nyata
-cukup mengganti sumbernya.
+API yang sama dengan sistem nyata: CS AI dan Ethix memakai API key dan endpoint kontrak
+(`docs/api-contract/cs-ai.v2.yaml`, `ethix.v1.yaml`); CS manusia login seperti user web.
+Pindah ke data nyata cukup mengganti sumbernya. CS AI palsu menghitung promo COD dengan
+salinan aturan GrasOn AI Chat di `src/data.ts` (keputusan 0006).
 
 ```bash
 pnpm demo:reset                      # kosongkan data, buat akun demo + kunci, lalu jalankan sim

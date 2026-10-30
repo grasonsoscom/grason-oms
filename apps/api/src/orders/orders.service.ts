@@ -5,7 +5,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { Agen, MetodeBayar, Prisma, Sumber } from '@grason/db';
+import type { Agen, MetodeBayar, Prisma, Segmen, Sumber } from '@grason/db';
 import {
   GalatCheckout,
   STATUS_BOLEH_BATAL,
@@ -46,6 +46,13 @@ export interface InputCheckout {
   items: { sku: string; qty: number }[];
   ongkir: number;
   diskon: number;
+  /** Rincian promo COD (cs-ai.v2, keputusan 0006); default 0. */
+  subsidiOngkir?: number;
+  biayaCod?: number;
+  subsidiAdminCod?: number;
+  segmen?: Segmen | null;
+  /** Total hitungan sistem pengirim; ditolak bila berbeda dengan hitungan OMS. */
+  totalDiharapkan?: number;
   catatan?: string | null;
 }
 
@@ -120,6 +127,20 @@ export class OrdersService {
         );
       }
       const pecahan = this.pecah(items, input);
+      const jumlah = (k: 'subtotal' | 'total') => pecahan.reduce((a, o) => a + o[k], 0);
+      if (input.totalDiharapkan !== undefined && input.totalDiharapkan !== jumlah('total')) {
+        // Biasanya harga di sistem pengirim berbeda dengan harga aktif OMS (GET /prices).
+        throw new UnprocessableEntityException(
+          galat('total_tidak_cocok', 'Total tidak sama dengan hitungan OMS', {
+            total_dikirim: input.totalDiharapkan,
+            total_oms: jumlah('total'),
+            subtotal_oms: jumlah('subtotal'),
+            items: pecahan.flatMap((o) =>
+              o.items.map((i) => ({ sku: i.sku, qty: i.qty, harga_satuan: i.hargaSatuan })),
+            ),
+          }),
+        );
+      }
 
       const grup = await tx.orderGroup.create({
         data: {
@@ -128,10 +149,13 @@ export class OrdersService {
           leadId: lead.id,
           customerId: lead.customerId,
           metodeBayar: input.metodeBayar,
-          subtotal: pecahan.reduce((a, o) => a + o.subtotal, 0),
+          subtotal: jumlah('subtotal'),
           diskon: input.diskon,
           ongkir: input.ongkir,
-          total: pecahan.reduce((a, o) => a + o.total, 0),
+          subsidiOngkir: input.subsidiOngkir ?? 0,
+          biayaCod: input.biayaCod ?? 0,
+          subsidiAdminCod: input.subsidiAdminCod ?? 0,
+          total: jumlah('total'),
           createdAt: waktu,
         },
       });
@@ -153,8 +177,12 @@ export class OrdersService {
             subtotal: o.subtotal,
             diskon: o.diskon,
             ongkir: o.ongkir,
+            subsidiOngkir: o.subsidiOngkir,
+            biayaCod: o.biayaCod,
+            subsidiAdminCod: o.subsidiAdminCod,
             total: o.total,
             nilaiCod: o.nilaiCod,
+            segmen: input.segmen ?? lead.segmen,
             perluVerifikasiManusia: lead.customer.tandaRts,
             catatan: input.catatan ?? null,
             penerimaNama: input.penerima.nama,
@@ -198,7 +226,16 @@ export class OrdersService {
 
   /** Pratinjau pemecahan dan kecukupan stok, tanpa menyimpan. */
   async pratinjau(
-    input: Pick<InputCheckout, 'items' | 'metodeBayar' | 'ongkir' | 'diskon'>,
+    input: Pick<
+      InputCheckout,
+      | 'items'
+      | 'metodeBayar'
+      | 'ongkir'
+      | 'diskon'
+      | 'subsidiOngkir'
+      | 'biayaCod'
+      | 'subsidiAdminCod'
+    >,
     waktu: Date,
   ): Promise<Pratinjau> {
     const tx = this.prisma.client;
@@ -422,7 +459,10 @@ export class OrdersService {
 
   private pecah(
     items: ItemCheckout[],
-    input: Pick<InputCheckout, 'metodeBayar' | 'ongkir' | 'diskon'>,
+    input: Pick<
+      InputCheckout,
+      'metodeBayar' | 'ongkir' | 'diskon' | 'subsidiOngkir' | 'biayaCod' | 'subsidiAdminCod'
+    >,
   ) {
     try {
       return pecahCheckout({
@@ -430,6 +470,9 @@ export class OrdersService {
         metodeBayar: input.metodeBayar,
         ongkir: input.ongkir,
         diskon: input.diskon,
+        subsidiOngkir: input.subsidiOngkir,
+        biayaCod: input.biayaCod,
+        subsidiAdminCod: input.subsidiAdminCod,
       });
     } catch (e) {
       if (e instanceof GalatCheckout) {

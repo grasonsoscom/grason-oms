@@ -5,6 +5,7 @@ import type {
   MetodeBayar,
   OrderStatus,
   Periode,
+  Segmen,
   StatusCover,
   TandaSla,
   TipeProduk,
@@ -62,6 +63,7 @@ export interface DetailLead {
   masukAt: string;
   responPertamaAt: string | null;
   kanal: string | null;
+  segmen: Segmen | null;
   campaignId: string | null;
   adsetId: string | null;
   adId: string | null;
@@ -104,8 +106,12 @@ export interface DetailOrder {
   subtotal: number;
   diskon: number;
   ongkir: number;
+  subsidiOngkir: number;
+  biayaCod: number;
+  subsidiAdminCod: number;
   total: number;
   nilaiCod: number;
+  segmen: Segmen | null;
   perluVerifikasiManusia: boolean;
   pelangganTandaRts: boolean;
   catatan: string | null;
@@ -228,6 +234,9 @@ export interface PecahanPratinjau {
   subtotal: number;
   diskon: number;
   ongkir: number;
+  subsidiOngkir: number;
+  biayaCod: number;
+  subsidiAdminCod: number;
   total: number;
   nilaiCod: number;
   beratGram: number;

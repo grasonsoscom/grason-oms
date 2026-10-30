@@ -145,3 +145,42 @@ export function buatIklan(a: Acak, skus: readonly string[]): Iklan[] {
   }
   return hasil;
 }
+
+// ─────────── Promo COD, tiruan aturan GrasOn AI Chat ───────────
+// Salinan src/lib/promo.ts di repo grason-ai-chat (30 Oktober 2026), hanya untuk CS AI dan
+// CS manusia palsu. OMS sendiri tidak menghitung promo; ia memeriksa total (keputusan 0006).
+
+export type Segmen = 'nc' | 'ro' | 'reseller';
+
+const BIAYA_COD = 0.03;
+const SUBSIDI_ADMIN_COD = 5000;
+const MIN_ORDER: Record<Segmen, number> = { nc: 120_000, ro: 120_000, reseller: 200_000 };
+const JAWA = /jawa|jakarta|banten|yogyakarta/i;
+
+function subsidiOngkir(segmen: Segmen, jawa: boolean, ongkir: number): number {
+  if (segmen === 'nc') {
+    if (jawa) return Math.min(ongkir, 25_000);
+    return ongkir >= 50_000 ? 25_000 : Math.round(ongkir * 0.5);
+  }
+  if (segmen === 'ro') return Math.min(ongkir, jawa ? 30_000 : 50_000);
+  return 0;
+}
+
+/** Rincian promo untuk satu checkout. Promo hanya untuk COD. */
+export function promoCod(opsi: {
+  nilaiBarang: number;
+  ongkir: number;
+  segmen: Segmen;
+  provinsi: string;
+  cod: boolean;
+}): { subsidiOngkir: number; biayaCod: number; subsidiAdminCod: number } {
+  if (!opsi.cod) return { subsidiOngkir: 0, biayaCod: 0, subsidiAdminCod: 0 };
+  const dasar = opsi.nilaiBarang + opsi.ongkir;
+  const layak = dasar >= MIN_ORDER[opsi.segmen];
+  const biayaCod = Math.round(dasar * BIAYA_COD);
+  return {
+    subsidiOngkir: layak ? subsidiOngkir(opsi.segmen, JAWA.test(opsi.provinsi), opsi.ongkir) : 0,
+    biayaCod,
+    subsidiAdminCod: layak ? Math.min(SUBSIDI_ADMIN_COD, biayaCod) : 0,
+  };
+}

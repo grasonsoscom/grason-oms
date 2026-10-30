@@ -17,6 +17,11 @@ export const Perlu = (...izin: Izin[]) => SetMetadata(META_IZIN, izin);
 /** API key sistem dengan semua scope ini. */
 export const PerluScope = (...scope: Scope[]) => SetMetadata(META_SCOPE, scope);
 
+/** Waktu permintaan (UTC). Di mode demo bisa diatur simulator lewat X-Sim-Waktu. */
+export const WaktuSaatIni = createParamDecorator((_: unknown, ctx: ExecutionContext): Date => {
+  return ctx.switchToHttp().getRequest<RequestOms>().waktu ?? new Date();
+});
+
 export const PelakuSaatIni = createParamDecorator((_: unknown, ctx: ExecutionContext): Pelaku => {
   const req = ctx.switchToHttp().getRequest<RequestOms>();
   if (!req.pelaku) throw new Error('Pelaku belum terisi; pastikan AksesGuard aktif');

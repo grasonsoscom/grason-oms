@@ -19,7 +19,9 @@
     "db:deploy": "pnpm --filter @grason/db migrate:deploy",
     "db:seed": "pnpm --filter @grason/db seed",
     "db:studio": "pnpm --filter @grason/db studio",
-    "apikey:create": "pnpm --filter @grason/api apikey:create"
+    "apikey:create": "pnpm --filter @grason/api apikey:create",
+    "sim": "pnpm --filter @grason/simulator sim",
+    "demo:reset": "pnpm --filter @grason/api demo:reset"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

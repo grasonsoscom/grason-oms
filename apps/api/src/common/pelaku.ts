@@ -23,6 +23,12 @@ export type Pelaku = PelakuUser | PelakuApiKey;
 
 export interface RequestOms extends Request {
   pelaku?: Pelaku;
+  /** Waktu permintaan; lihat waktuPermintaan di buat-app.ts. */
+  waktu?: Date;
+}
+
+export function bolehLihatPii(pelaku: Pelaku): boolean {
+  return pelaku.tipe === 'user' && pelaku.izin.includes('pelanggan.pii.lihat');
 }
 
 /** Kolom pelaku untuk audit_logs dan order_status_history. */

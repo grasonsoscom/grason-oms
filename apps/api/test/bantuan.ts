@@ -2,8 +2,9 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { hashPassword, seed, type PrismaClient } from '@grason/db';
 import { kosongkanDatabase, urlDatabaseTes } from '@grason/db/testing';
-import type { Role } from '@grason/shared';
+import type { Role, Sistem } from '@grason/shared';
 import request from 'supertest';
+import { ApiKeysService } from '../src/api-keys/api-keys.service';
 import { AppModule } from '../src/app.module';
 import { siapkanApp } from '../src/buat-app';
 import { CONFIG, type ConfigApi } from '../src/config';
@@ -61,4 +62,62 @@ export async function login(
 export async function loginSebagai(ctx: KonteksUji, role: Role): Promise<string> {
   const user = await buatUser(ctx.prisma, role);
   return login(ctx, user.email);
+}
+
+/** API key sistem langsung lewat service (kunci utuh hanya dikembalikan sekali). */
+export async function kunciSistem(ctx: KonteksUji, sistem: Sistem): Promise<string> {
+  const { kunci } = await ctx.app.get(ApiKeysService).buat({ nama: `Uji ${sistem}`, sistem });
+  return kunci;
+}
+
+/** Snapshot stok Ethix untuk SKU komponen. */
+export async function isiStok(
+  ctx: KonteksUji,
+  kunciEthix: string,
+  stok: Record<string, number>,
+  snapshotAt = new Date(),
+): Promise<void> {
+  await ctx
+    .http()
+    .post('/api/v1/ethix/stock')
+    .set('X-Api-Key', kunciEthix)
+    .send({
+      snapshot_at: snapshotAt.toISOString(),
+      items: Object.entries(stok).map(([sku, qty]) => ({ sku, stok_layak_jual: qty })),
+    })
+    .expect(200);
+}
+
+let urutEvent = 0;
+
+/** Kirim satu event pengiriman Ethix dan kembalikan HasilBatch. */
+export async function eventEthix(
+  ctx: KonteksUji,
+  kunciEthix: string,
+  orderNomor: string,
+  jenis: string,
+  tambahan: Record<string, unknown> = {},
+) {
+  urutEvent += 1;
+  const res = await ctx
+    .http()
+    .post('/api/v1/ethix/shipment-events')
+    .set('X-Api-Key', kunciEthix)
+    .send({
+      events: [
+        {
+          event_id: `ev-${urutEvent}-${Date.now()}`,
+          order_nomor: orderNomor,
+          jenis,
+          terjadi_at: new Date().toISOString(),
+          ...tambahan,
+        },
+      ],
+    })
+    .expect(200);
+  return res.body as {
+    diterima: number;
+    duplikat: number;
+    gagal: { id: string; error: { kode: string } }[];
+  };
 }

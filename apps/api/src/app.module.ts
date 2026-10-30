@@ -9,9 +9,19 @@ import { SesiService } from './auth/sesi.service';
 import { Publik } from './common/decorators';
 import { FilterGalat } from './common/galat';
 import { ConfigModule } from './config.module';
+import { AppLeadsController } from './app/app-leads.controller';
+import { AppOrdersController } from './app/app-orders.controller';
+import { AppUmumController } from './app/app-umum.controller';
 import { CustomersController } from './customers/customers.controller';
+import { EthixService } from './ethix/ethix.service';
+import { CsAiController } from './kontrak/cs-ai.controller';
+import { EthixController } from './kontrak/ethix.controller';
+import { LeadsService } from './leads/leads.service';
+import { OrdersService } from './orders/orders.service';
+import { StatusService } from './orders/status.service';
 import { PrismaModule } from './prisma/prisma.service';
 import { ProductsController } from './products/products.controller';
+import { StokService } from './stok/stok.service';
 import { UsersController } from './users/users.controller';
 
 @Controller('health')
@@ -33,10 +43,20 @@ class HealthController {
     SistemController,
     ProductsController,
     CustomersController,
+    CsAiController,
+    EthixController,
+    AppLeadsController,
+    AppOrdersController,
+    AppUmumController,
   ],
   providers: [
     SesiService,
     ApiKeysService,
+    StokService,
+    StatusService,
+    OrdersService,
+    LeadsService,
+    EthixService,
     { provide: APP_GUARD, useClass: AksesGuard },
     { provide: APP_FILTER, useClass: FilterGalat },
   ],

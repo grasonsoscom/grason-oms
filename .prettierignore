@@ -5,3 +5,5 @@ dist
 .next
 CLAUDE.md
 docs/blueprint.md
+packages/simulator/src/kontrak/*.v1.ts
+apps/web/next-env.d.ts

@@ -17,6 +17,21 @@ pnpm build
 pnpm dev               # API :3001, web :3000, worker
 ```
 
+## Demo dengan data dummy
+
+Isi `DEMO_MODE=true` dan `DEMO_PASSWORD` di `.env` (jangan di produksi), jalankan
+`pnpm dev`, lalu di terminal lain:
+
+```bash
+pnpm demo:reset        # kosongkan data dummy, buat akun demo, isi 200 lead dalam 7 hari
+pnpm sim --lead 100    # tambah data kapan saja; opsi lengkap di packages/simulator
+```
+
+Akun demo (password = `DEMO_PASSWORD`): `orkestrator@`, `finance@`, `sales-ops@`,
+`cs-leader@`, `cs1@`–`cs3@`, `pic-iklan@` dengan domain `demo.grason.local`.
+
+## API key
+
 Buat API key untuk sistem luar (kunci hanya tampil sekali):
 
 ```bash
@@ -25,17 +40,17 @@ pnpm apikey:create --sistem cs_ai --nama "Simulator CS AI"
 
 ## Struktur
 
-| Folder                  | Isi                                                             |
-| ----------------------- | --------------------------------------------------------------- |
-| `apps/api`              | NestJS: auth, role, API key; modul lead/order/stok/COD menyusul |
-| `apps/web`              | Next.js dashboard (UI berbahasa Indonesia)                      |
-| `apps/worker`           | BullMQ: job integrasi dan sinkronisasi                          |
-| `packages/db`           | Skema Prisma, migrasi, seed                                     |
-| `packages/shared`       | Enum status, role, izin, scope, util bersama                    |
-| `packages/simulator`    | CS AI, ADV AI, Ethix palsu (Fase 1–2)                           |
-| `packages/integrations` | Adaptor nyata (Fase 3)                                          |
-| `docs/api-contract`     | OpenAPI untuk SaaS CS AI, ADV AI, Ethix                         |
-| `docs/decisions`        | Catatan keputusan desain                                        |
+| Folder                  | Isi                                                              |
+| ----------------------- | ---------------------------------------------------------------- |
+| `apps/api`              | NestJS: auth, lead, order, status, stok, API kontrak & dashboard |
+| `apps/web`              | Next.js dashboard (UI berbahasa Indonesia)                       |
+| `apps/worker`           | BullMQ: job integrasi dan sinkronisasi                           |
+| `packages/db`           | Skema Prisma, migrasi, seed                                      |
+| `packages/shared`       | Enum status, role, izin, scope, util bersama                     |
+| `packages/simulator`    | CS AI, Ethix, CS manusia palsu (`pnpm sim`)                      |
+| `packages/integrations` | Adaptor nyata (Fase 3)                                           |
+| `docs/api-contract`     | OpenAPI untuk SaaS CS AI, ADV AI, Ethix                          |
+| `docs/decisions`        | Catatan keputusan desain                                         |
 
 ## Tes
 

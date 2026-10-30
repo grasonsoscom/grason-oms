@@ -1,0 +1,31 @@
+{
+  "name": "@grason/simulator",
+  "version": "0.0.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "sim": "node -r @swc-node/register src/cli.ts",
+    "gen:kontrak": "node -r @swc-node/register src/gen-kontrak.ts"
+  },
+  "dependencies": {
+    "@grason/shared": "workspace:*",
+    "dotenv": "^17.2.0"
+  },
+  "devDependencies": {
+    "@swc-node/register": "^1.12.1",
+    "@swc/core": "1.16.20",
+    "openapi-typescript": "^7.13.0",
+    "vitest": "5.0.5"
+  }
+}

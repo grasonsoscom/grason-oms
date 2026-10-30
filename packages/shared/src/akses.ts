@@ -46,6 +46,8 @@ export const IZIN = [
   'user.kelola',
   'apikey.kelola',
   'audit.lihat',
+  /** Log integrasi (panggilan masuk, webhook keluar) dan rekonsiliasi; Orkestrator saja. */
+  'integrasi.lihat',
 ] as const;
 export type Izin = (typeof IZIN)[number];
 

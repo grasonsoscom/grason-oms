@@ -241,3 +241,29 @@ export interface PecahanPratinjau {
   nilaiCod: number;
   beratGram: number;
 }
+
+export interface EventIntegrasi {
+  id: string;
+  sistem: 'cs_ai' | 'ethix' | 'adv_ai';
+  arah: 'masuk' | 'keluar';
+  jenis: string;
+  externalId: string | null;
+  status: 'diterima' | 'diproses' | 'berhasil' | 'gagal' | 'duplikat';
+  percobaan: number;
+  error: string | null;
+  apiKey: { nama: string; prefix: string } | null;
+  dibuatAt: string;
+  diprosesAt: string | null;
+  cobaLagiAt: string | null;
+  payload: unknown;
+}
+
+export interface RekapIntegrasi {
+  data: {
+    tanggal: string;
+    arah: 'masuk' | 'keluar';
+    jenis: string;
+    status: string;
+    jumlah: number;
+  }[];
+}

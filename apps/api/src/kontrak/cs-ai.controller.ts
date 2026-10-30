@@ -10,6 +10,7 @@ import {
   Post,
   Query,
   Res,
+  UseInterceptors,
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { LEAD_STATUS, METODE_BAYAR, SEGMEN } from '@grason/shared';
@@ -22,6 +23,7 @@ import { OrdersService, INCLUDE_ORDER } from '../orders/orders.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StokService } from '../stok/stok.service';
 import { checkoutKontrak, leadKontrak, orderKontrak, stokKontrak } from './serialisasi';
+import { LogMasukInterceptor } from './log-masuk.interceptor';
 
 // Endpoint kontrak docs/api-contract/cs-ai.v1.yaml (/api/v1) dan cs-ai.v2.yaml (/api/v2).
 // Hanya untuk API key sistem cs_ai. Beda v2: rincian harga COD dan segmen (keputusan 0006).
@@ -95,6 +97,7 @@ const skemaVerifikasi = z.object({
 });
 
 @Controller({ version: ['1', '2'] })
+@UseInterceptors(LogMasukInterceptor)
 export class CsAiController {
   constructor(
     private readonly prisma: PrismaService,

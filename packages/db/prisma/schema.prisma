@@ -430,6 +430,8 @@ model IntegrationEvent {
   apiKeyId       String?         @map("api_key_id") @db.Uuid
   createdAt      DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
   diprosesAt     DateTime?       @map("diproses_at") @db.Timestamptz(3)
+  /// Pengiriman keluar berikutnya (retry bertahap); juga batas sewa saat status diproses.
+  cobaLagiAt     DateTime?       @map("coba_lagi_at") @db.Timestamptz(3)
 
   apiKey ApiKey? @relation(fields: [apiKeyId], references: [id])
 

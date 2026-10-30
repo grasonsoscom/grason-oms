@@ -28,7 +28,8 @@ export type Pemroses = (job: Job) => Promise<unknown>;
 
 /**
  * Pemroses per nama job. Fase 0 baru berisi `ping` untuk memeriksa jalur antrian.
- * Job kirim order ke Ethix, tarik status & COD, webhook ke CS AI, dsb. ditambahkan di Fase 1–3.
+ * Webhook ke CS AI tidak lewat antrian ini: worker menyapu outbox integration_events
+ * (src/webhook-cs-ai.ts). Job Ethix ditambahkan saat API Ethix siap.
  */
 export const PEMROSES: Record<string, Pemroses> = {
   ping: async (job) => ({ pong: true, diterima: job.data as unknown }),

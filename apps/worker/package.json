@@ -10,6 +10,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@grason/db": "workspace:*",
+    "@grason/integrasi-cs-ai": "workspace:*",
     "@grason/shared": "workspace:*",
     "bullmq": "6.5.0",
     "dotenv": "^17.2.0",

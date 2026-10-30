@@ -8,6 +8,10 @@ const skemaConfig = z.object({
   SESSION_TTL_HOURS: z.coerce.number().positive().default(12),
   DEMO_MODE: z.enum(['true', 'false']).default('false'),
   RATE_LIMIT_API_KEY_PER_MENIT: z.coerce.number().int().min(0).default(60),
+  SESSION_COOKIE: z
+    .string()
+    .regex(/^[a-z_]+$/)
+    .default('oms_sesi'),
 });
 
 export interface ConfigApi {
@@ -20,6 +24,8 @@ export interface ConfigApi {
   demoMode: boolean;
   /** Batas permintaan per API key per menit; 0 = tanpa batas. Kunci simulator di mode demo tidak dibatasi. */
   batasPerMenitApiKey: number;
+  /** Nama cookie sesi; lingkungan uji sambung memakai nama lain supaya tidak bentrok dengan demo. */
+  cookieSesi: string;
 }
 
 export const CONFIG = Symbol('CONFIG');
@@ -42,5 +48,6 @@ export function muatConfig(env: NodeJS.ProcessEnv): ConfigApi {
     sesiTtlMs: c.SESSION_TTL_HOURS * 60 * 60 * 1000,
     demoMode: c.DEMO_MODE === 'true',
     batasPerMenitApiKey: c.RATE_LIMIT_API_KEY_PER_MENIT,
+    cookieSesi: c.SESSION_COOKIE,
   };
 }

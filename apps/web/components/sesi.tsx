@@ -20,6 +20,7 @@ const MENU: { href: string; label: string; izin: Izin[] }[] = [
   { href: '/lead', label: 'Lead', izin: ['lead.lihat_semua', 'lead.lihat_milik'] },
   { href: '/order', label: 'Order', izin: ['order.lihat_semua', 'order.lihat_milik'] },
   { href: '/stok', label: 'Stok', izin: ['stok.lihat'] },
+  { href: '/integrasi', label: 'Integrasi', izin: ['integrasi.lihat'] },
 ];
 
 /** Cek sesi sekali, lalu tampilkan navigasi sesuai izin role. */

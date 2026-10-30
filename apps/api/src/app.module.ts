@@ -9,6 +9,7 @@ import { SesiService } from './auth/sesi.service';
 import { Publik } from './common/decorators';
 import { FilterGalat } from './common/galat';
 import { ConfigModule } from './config.module';
+import { AppIntegrasiController } from './app/app-integrasi.controller';
 import { AppLeadsController } from './app/app-leads.controller';
 import { AppOrdersController } from './app/app-orders.controller';
 import { AppRingkasanController } from './app/app-ringkasan.controller';
@@ -50,6 +51,7 @@ class HealthController {
     AppOrdersController,
     AppUmumController,
     AppRingkasanController,
+    AppIntegrasiController,
   ],
   providers: [
     SesiService,

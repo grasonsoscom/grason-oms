@@ -21,7 +21,9 @@
     "db:studio": "pnpm --filter @grason/db studio",
     "apikey:create": "pnpm --filter @grason/api apikey:create",
     "sim": "pnpm --filter @grason/simulator sim",
-    "demo:reset": "pnpm --filter @grason/api demo:reset"
+    "demo:reset": "pnpm --filter @grason/api demo:reset",
+    "uji": "node scripts/uji.mjs",
+    "uji:siapkan": "node scripts/uji.mjs siapkan"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

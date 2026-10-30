@@ -20,7 +20,7 @@ import { tokenAcak } from '../common/token';
 import type { Pelaku } from '../common/pelaku';
 import { CONFIG, type ConfigApi } from '../config';
 import { PrismaService } from '../prisma/prisma.service';
-import { COOKIE_SESI, SesiService } from './sesi.service';
+import { SesiService } from './sesi.service';
 
 const skemaLogin = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email('Format email tidak valid')),
@@ -91,7 +91,7 @@ export class AuthController {
       ip: req.ip,
     });
 
-    res.cookie(COOKIE_SESI, token, {
+    res.cookie(this.config.cookieSesi, token, {
       httpOnly: true,
       sameSite: 'lax',
       secure: this.config.lingkungan === 'production',
@@ -122,7 +122,7 @@ export class AuthController {
         ip: req.ip,
       });
     }
-    res.clearCookie(COOKIE_SESI, { path: '/' });
+    res.clearCookie(this.config.cookieSesi, { path: '/' });
   }
 
   @Perlu()

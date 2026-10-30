@@ -297,6 +297,12 @@ importers:
 
   apps/worker:
     dependencies:
+      '@grason/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@grason/integrasi-cs-ai':
+        specifier: workspace:*
+        version: link:../../packages/integrations/cs-ai
       '@grason/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -341,6 +347,16 @@ importers:
       tsx:
         specifier: 4.23.15
         version: 4.23.15
+      vitest:
+        specifier: 5.0.5
+        version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/integrations/cs-ai:
+    dependencies:
+      '@grason/db':
+        specifier: workspace:*
+        version: link:../../db
+    devDependencies:
       vitest:
         specifier: 5.0.5
         version: 5.0.5(@types/node@24.19.2)(vite@8.3.5(@types/node@24.19.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))

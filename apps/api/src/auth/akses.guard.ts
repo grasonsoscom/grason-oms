@@ -18,7 +18,7 @@ import { galat } from '../common/galat';
 import type { Pelaku, RequestOms } from '../common/pelaku';
 import { CONFIG, type ConfigApi } from '../config';
 import { PembatasLaju } from './pembatas-laju';
-import { COOKIE_SESI, SesiService } from './sesi.service';
+import { SesiService } from './sesi.service';
 
 /**
  * Guard global. Pelaku = API key (header Authorization: Bearer gok_… atau X-Api-Key)
@@ -95,7 +95,7 @@ export class AksesGuard implements CanActivate {
   }
 
   private async sesiDari(req: RequestOms): Promise<Pelaku | null> {
-    const token: unknown = req.cookies?.[COOKIE_SESI];
+    const token: unknown = req.cookies?.[this.config.cookieSesi];
     if (typeof token === 'string' && token.length > 0) return this.sesi.validasi(token);
     return null;
   }

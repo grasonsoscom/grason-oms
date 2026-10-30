@@ -6,6 +6,7 @@ export default tseslint.config(
     ignores: [
       '**/dist/**',
       '**/.next/**',
+      '**/.next-*/**',
       '**/generated/**',
       '**/node_modules/**',
       '**/next-env.d.ts',
@@ -17,6 +18,13 @@ export default tseslint.config(
   {
     rules: {
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
+  },
+  {
+    // Skrip Node biasa (tanpa TypeScript), mis. scripts/uji.mjs.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { process: 'readonly', console: 'readonly', Buffer: 'readonly', URL: 'readonly' },
     },
   },
 );

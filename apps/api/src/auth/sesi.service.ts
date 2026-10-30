@@ -5,8 +5,6 @@ import type { PelakuUser } from '../common/pelaku';
 import { sha256, tokenAcak } from '../common/token';
 import { PrismaService } from '../prisma/prisma.service';
 
-export const COOKIE_SESI = 'oms_sesi';
-
 /** dipakai_at hanya diperbarui bila lebih tua dari ini, agar tiap request tidak menulis ke DB. */
 const JEDA_UPDATE_DIPAKAI_MS = 5 * 60 * 1000;
 

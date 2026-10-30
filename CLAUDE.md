@@ -7,9 +7,11 @@ Shopee & TikTok Shop menyusul di v2.
 Blueprint lengkap: docs/blueprint.md. Baca sebelum mengubah skema atau alur status.
 
 ## Fase saat ini
-Fase 0 – Fondasi & kontrak data.
-Fase 0–2 memakai simulator; belum ada integrasi nyata dengan SaaS CS AI, ADV AI, atau Ethix.
-Integrasi nyata baru dibangun di Fase 3.
+Fase 3 – Integrasi SaaS CS AI (GrasOn AI Chat, kontrak cs-ai.v2). Keputusan 0007.
+- Fase 0 dan 1 selesai; Fase 2 (dashboard, ROAS, kinerja CS) menyusul setelah Fase 3.
+- ADV AI dan API Ethix digeser ke setelah Fase 3; sampai itu Ethix tetap dari simulator.
+- Data nyata hanya di lingkungan uji sambung (`pnpm uji`, database grason_oms_uji),
+  terpisah dari demo dan simulator.
 
 ## Aturan tetap
 - TypeScript strict di semua app. Uang = integer rupiah.

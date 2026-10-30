@@ -3,6 +3,7 @@ packages/db/src/generated
 packages/db/prisma/migrations
 dist
 .next
+.next-*
 CLAUDE.md
 docs/blueprint.md
 packages/simulator/src/kontrak/*.v[0-9].ts

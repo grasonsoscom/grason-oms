@@ -14,3 +14,6 @@ packages/db/src/generated/
 
 # Kunci simulator dari pnpm demo:reset
 .demo/
+
+# Ditulis next dev/typegen; isinya mengikuti folder build (.next atau .next-uji).
+apps/web/next-env.d.ts
